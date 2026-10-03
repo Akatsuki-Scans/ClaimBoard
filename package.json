@@ -1,0 +1,18 @@
+{
+  "name": "claimboard-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-grade Discord-first Manga Scanlation Management Platform",
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "seed": "pnpm --filter @claimboard/api seed",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.4",
+    "typescript": "^5.7.3"
+  },
+  "packageManager": "pnpm@10.33.0"
+}

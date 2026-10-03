@@ -1,0 +1,549 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '../../lib/api';
+import { searchAnilistManga, AnilistManga } from '../../lib/anilist';
+import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
+import { Input, Textarea } from '../../components/ui/Input';
+import { Modal } from '../../components/ui/Modal';
+import {
+  BookOpen,
+  Plus,
+  Layers,
+  GitFork,
+  Clock,
+  CheckCircle,
+  Hash,
+  ArrowRight,
+  ExternalLink,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
+
+export function MangaDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
+  const [showAllChapters, setShowAllChapters] = useState(false);
+
+  // Single chapter modal
+  const [isAddChapterOpen, setIsAddChapterOpen] = useState(false);
+  const [chapterNumber, setChapterNumber] = useState('');
+  const [chapterTitle, setChapterTitle] = useState('');
+  const [chapterPriority, setChapterPriority] = useState('Normal');
+
+  // Discord Role modal
+  const [isDiscordRoleModalOpen, setIsDiscordRoleModalOpen] = useState(false);
+  const [discordRoleId, setDiscordRoleId] = useState('');
+  const [discordRoleName, setDiscordRoleName] = useState('');
+
+  // AniList metadata state
+  const [anilistData, setAnilistData] = useState<AnilistManga | null>(null);
+  const [isFetchingAnilist, setIsFetchingAnilist] = useState(false);
+
+  const { data: manga, isLoading: isMangaLoading } = useQuery({
+    queryKey: ['manga', id],
+    queryFn: () => (id ? apiRequest<any>(`/manga/${id}`) : null),
+  });
+
+  const { data: chapters, isLoading: isChaptersLoading } = useQuery({
+    queryKey: ['chapters', id],
+    queryFn: () => (id ? apiRequest<any[]>(`/chapters?mangaId=${id}`) : []),
+  });
+
+  // Update Discord Role Mutation
+  const updateDiscordRoleMutation = useMutation({
+    mutationFn: async (payload?: { roleId?: string; roleName?: string }) => {
+      const targetId = payload?.roleId !== undefined ? payload.roleId : discordRoleId.trim();
+      const targetName = payload?.roleName !== undefined ? payload.roleName : discordRoleName.trim();
+      return apiRequest(`/manga/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          discordRoleId: targetId || undefined,
+          discordRoleName: targetName || undefined,
+        }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['manga', id] });
+      setIsDiscordRoleModalOpen(false);
+    },
+  });
+
+  // Query AniList whenever manga data is loaded
+  useEffect(() => {
+    if (!manga?.title) return;
+
+    let isMounted = true;
+    setIsFetchingAnilist(true);
+
+    searchAnilistManga(manga.title)
+      .then((results) => {
+        if (!isMounted) return;
+        const match = results[0];
+        if (match) {
+          setAnilistData(match);
+        }
+      })
+      .catch((err) => console.warn('AniList lookup error:', err))
+      .finally(() => {
+        if (isMounted) setIsFetchingAnilist(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [manga?.title]);
+
+  // Determine latest chapter from DB or AniList
+  const sortedChapters = [...(chapters || [])].sort((a, b) => {
+    const numA = parseFloat(a.chapterNumber) || 0;
+    const numB = parseFloat(b.chapterNumber) || 0;
+    return numB - numA;
+  });
+
+  const latestDbChapter = sortedChapters[0];
+  const latestChapterNumber = latestDbChapter
+    ? latestDbChapter.chapterNumber
+    : anilistData?.chapters
+    ? anilistData.chapters.toString()
+    : 'None yet';
+
+  // Automatically suggest next chapter number when modal opens
+  useEffect(() => {
+    if (isAddChapterOpen && !chapterNumber) {
+      const nextNum = latestDbChapter
+        ? (parseFloat(latestDbChapter.chapterNumber) || 0) + 1
+        : anilistData?.chapters
+        ? anilistData.chapters + 1
+        : 1;
+      setChapterNumber(nextNum.toString());
+      setChapterTitle(`Chapter ${nextNum}`);
+    }
+  }, [isAddChapterOpen, latestDbChapter, anilistData]);
+
+  // Create Chapter Mutation
+  const createChapterMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('/chapters', {
+        method: 'POST',
+        body: JSON.stringify({
+          mangaId: id,
+          chapterNumber: chapterNumber.trim(),
+          title: chapterTitle.trim() || `Chapter ${chapterNumber.trim()}`,
+          priority: chapterPriority,
+        }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chapters', id] });
+      queryClient.invalidateQueries({ queryKey: ['manga', id] });
+      setIsAddChapterOpen(false);
+      setChapterNumber('');
+      setChapterTitle('');
+    },
+  });
+
+  if (isMangaLoading) {
+    return (
+      <div className="p-12 text-center text-xs text-zinc-500">
+        Loading manga series details...
+      </div>
+    );
+  }
+
+  if (!manga) {
+    return (
+      <div className="p-12 text-center space-y-3">
+        <h2 className="text-lg font-bold text-white">Manga Not Found</h2>
+        <p className="text-xs text-zinc-400">The requested series does not exist or has been removed.</p>
+        <Link to="/manga">
+          <Button variant="outline" size="sm">
+            ← Back to Manga Catalog
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
+  // Slice chapters so we don't display all at once
+  const displayedChapters = showAllChapters ? sortedChapters : sortedChapters.slice(0, 5);
+
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Hero Header Card */}
+      <div className="rounded-2xl border border-zinc-800 bg-[#121215] overflow-hidden relative">
+        <div className="p-6 sm:p-8 flex flex-col md:flex-row gap-6 items-start">
+          {/* Cover thumbnail */}
+          <div className="relative shrink-0">
+            <img
+              src={manga.coverUrl || anilistData?.coverImage.extraLarge || '/akatsuki.jpg'}
+              alt={manga.title}
+              className="h-44 w-32 md:h-52 md:w-36 rounded-xl object-cover border border-zinc-700/80 shadow-2xl"
+            />
+          </div>
+
+          {/* Details Column */}
+          <div className="flex-1 space-y-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white font-sans">
+                {manga.title}
+              </h1>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-950/80 text-emerald-400 border border-emerald-800/60">
+                {manga.status || 'Active'}
+              </span>
+            </div>
+
+            {/* Genres & Tags */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {(manga.genres?.length ? manga.genres : anilistData?.genres || ['Manga', 'Scanlation']).map(
+                (tag: string) => (
+                  <span
+                    key={tag}
+                    className="px-2 py-0.5 rounded-md text-[11px] bg-zinc-800 text-zinc-300 border border-zinc-700/60"
+                  >
+                    {tag}
+                  </span>
+                )
+              )}
+            </div>
+
+            {/* Meta row */}
+            <div className="text-xs text-zinc-400 flex flex-wrap items-center gap-3">
+              <span className="text-zinc-200 font-medium">By {manga.author || 'Unknown'}</span>
+              <span>•</span>
+              <span>{manga.language || 'Japanese'}</span>
+              <span>•</span>
+              <span className="text-indigo-400 font-medium">
+                {manga.releaseSchedule || 'Weekly'} Releases
+              </span>
+            </div>
+
+            {/* Discord Role Tagging Configuration */}
+            <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
+              <span className="text-zinc-400 flex items-center gap-1.5">
+                <span className="inline-block h-2 w-2 rounded-full bg-[#5865F2]" />
+                Discord Ping Role:
+              </span>
+              {manga.discordRoleId ? (
+                <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[#5865F2]/20 border border-[#5865F2]/40 text-[#7983f5] font-semibold flex items-center gap-1">
+                  @{manga.discordRoleName || manga.discordRoleId}
+                </span>
+              ) : (
+                <span className="text-zinc-500 italic text-[11px]">No role tagged</span>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setDiscordRoleId(manga.discordRoleId || '');
+                  setDiscordRoleName(manga.discordRoleName || '');
+                  setIsDiscordRoleModalOpen(true);
+                }}
+                className="text-[11px] text-[#5865F2] hover:text-[#7983f5] underline ml-1 font-medium cursor-pointer"
+              >
+                {manga.discordRoleId ? 'Change' : '+ Configure Discord Role'}
+              </button>
+            </div>
+
+            {/* Synopsis */}
+            <p className="text-xs text-zinc-400/90 leading-relaxed max-w-3xl line-clamp-3">
+              {manga.description || anilistData?.description?.replace(/<[^>]*>?/gm, '') || 'No synopsis provided.'}
+            </p>
+
+            {/* Actions */}
+            <div className="flex flex-wrap items-center gap-2.5 pt-2">
+              <Link to={`/pipeline?mangaId=${manga.id}`}>
+                <Button size="sm" variant="primary" className="text-xs">
+                  Active Pipeline
+                </Button>
+              </Link>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setIsAddChapterOpen(true)}
+                className="text-xs"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" /> Add Chapter
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* SERIES LATEST CHAPTER HERO BANNER (AniList + DB Integration) */}
+      <div className="rounded-xl border border-indigo-900/60 bg-gradient-to-r from-indigo-950/40 via-zinc-900/40 to-zinc-950 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider bg-indigo-500 text-white">
+              Latest Chapter
+            </span>
+            {isFetchingAnilist && (
+              <span className="text-[11px] text-zinc-400 font-mono">Syncing with AniList...</span>
+            )}
+          </div>
+          <div className="text-lg font-bold text-white flex items-center gap-2.5">
+            <span>Chapter {latestChapterNumber}</span>
+            {latestDbChapter?.title && (
+              <span className="text-sm text-zinc-400 font-normal">({latestDbChapter.title})</span>
+            )}
+          </div>
+          <div className="text-xs text-zinc-400 flex items-center gap-3">
+            <span>
+              Status: <strong className="text-indigo-300">{latestDbChapter?.status || 'Active'}</strong>
+            </span>
+            {anilistData?.chapters && (
+              <span>• Official AniList Chapters: {anilistData.chapters}</span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => setIsAddChapterOpen(true)}
+            className="text-xs"
+          >
+            <Plus className="h-3.5 w-3.5 mr-1" /> Add Next Chapter
+          </Button>
+        </div>
+      </div>
+
+      {/* Chapters Table (Shows latest chapters instead of everything at once) */}
+      <div className="rounded-xl border border-zinc-800 bg-[#121215] overflow-hidden">
+        <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-200">Production Chapters</h2>
+            <p className="text-[11px] text-zinc-500">
+              Showing {displayedChapters.length} of {sortedChapters.length} chapters
+            </p>
+          </div>
+          <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => setIsAddChapterOpen(true)}>
+            + Add Chapter
+          </Button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-zinc-900/60 border-b border-zinc-800 text-zinc-400 font-medium">
+              <tr>
+                <th className="py-3 px-4">Chapter #</th>
+                <th className="py-3 px-4">Title</th>
+                <th className="py-3 px-4">Status</th>
+                <th className="py-3 px-4">Release Date</th>
+                <th className="py-3 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800/80 text-zinc-200">
+              {displayedChapters.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-xs text-zinc-500">
+                    No chapters added for this manga yet. Click "+ Add Chapter" above.
+                  </td>
+                </tr>
+              ) : (
+                displayedChapters.map((ch: any) => (
+                  <tr key={ch.id} className="hover:bg-zinc-800/30 transition-colors">
+                    <td className="py-3.5 px-4 font-mono font-semibold text-zinc-100">
+                      Ch. {ch.chapterNumber}
+                    </td>
+                    <td className="py-3.5 px-4 text-zinc-300 font-medium">
+                      {ch.title || `Chapter ${ch.chapterNumber}`}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                          ch.status === 'Completed'
+                            ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/50'
+                            : 'bg-indigo-950/60 text-indigo-300 border border-indigo-800/50'
+                        }`}
+                      >
+                        ● {ch.status || 'In_Production'}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-zinc-400 font-mono text-[11px]">
+                      {ch.releaseDate ? new Date(ch.releaseDate).toLocaleDateString() : 'Active'}
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <Link to={`/pipeline/${manga.id}/${ch.id || ch._id}`}>
+                        <Button size="sm" variant="outline" className="h-7 text-xs px-2.5">
+                          Pipeline
+                        </Button>
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Toggle to view all chapters if more than 5 */}
+        {sortedChapters.length > 5 && (
+          <div className="p-3 border-t border-zinc-800/80 bg-zinc-950/40 text-center">
+            <button
+              onClick={() => setShowAllChapters(!showAllChapters)}
+              className="text-xs text-indigo-400 hover:text-indigo-300 inline-flex items-center gap-1 font-medium transition-colors"
+            >
+              {showAllChapters ? (
+                <>
+                  <ChevronUp className="h-3.5 w-3.5" /> Show latest chapters only
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-3.5 w-3.5" /> Show all {sortedChapters.length} chapters
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Add Chapter Modal (Manual Chapter Number + AniList Auto-fill) */}
+      {isAddChapterOpen && (
+        <Modal
+          isOpen={true}
+          onClose={() => setIsAddChapterOpen(false)}
+          title={`Add Chapter to ${manga.title}`}
+          description="Enter the chapter number. The title will automatically format."
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              createChapterMutation.mutate();
+            }}
+            className="space-y-4 text-xs"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-zinc-300 font-medium">Chapter Number</label>
+                {latestChapterNumber !== 'None yet' && (
+                  <span className="text-[11px] text-indigo-400 font-mono">
+                    Series latest: Ch. {latestChapterNumber}
+                  </span>
+                )}
+              </div>
+              <Input
+                type="text"
+                value={chapterNumber}
+                onChange={(e) => {
+                  setChapterNumber(e.target.value);
+                  if (!chapterTitle || chapterTitle.startsWith('Chapter ')) {
+                    setChapterTitle(`Chapter ${e.target.value}`);
+                  }
+                }}
+                placeholder="e.g. 101 or 1151"
+                required
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-zinc-300 font-medium mb-1">Chapter Title</label>
+              <Input
+                value={chapterTitle}
+                onChange={(e) => setChapterTitle(e.target.value)}
+                placeholder="e.g. The Dawn of Adventure"
+              />
+            </div>
+
+            <div>
+              <label className="block text-zinc-300 font-medium mb-1">Priority</label>
+              <select
+                value={chapterPriority}
+                onChange={(e) => setChapterPriority(e.target.value)}
+                className="w-full h-9 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-200 px-3 text-xs focus:outline-none focus:border-indigo-500"
+              >
+                <option value="Low">Low</option>
+                <option value="Normal">Normal</option>
+                <option value="High">High</option>
+                <option value="Urgent">Urgent</option>
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsAddChapterOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" size="sm" isLoading={createChapterMutation.isPending}>
+                Create Chapter
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Discord Role Tagging Modal */}
+      {isDiscordRoleModalOpen && (
+        <Modal
+          isOpen={isDiscordRoleModalOpen}
+          onClose={() => setIsDiscordRoleModalOpen(false)}
+          title={`Discord Role Tagging • ${manga?.title}`}
+        >
+          <div className="space-y-4 text-xs">
+            <p className="text-zinc-400 leading-relaxed">
+              Configure the Discord role to automatically tag whenever new chapters of <strong className="text-white">{manga?.title}</strong> are assigned using <code className="text-indigo-300 bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-800/40">/assign</code> in your Discord server.
+            </p>
+            <div>
+              <label className="text-[11px] font-semibold text-zinc-300 block mb-1 uppercase tracking-wider">
+                Discord Role Name (e.g. Solo Leveling Team)
+              </label>
+              <Input
+                value={discordRoleName}
+                onChange={(e) => setDiscordRoleName(e.target.value)}
+                placeholder="e.g. Solo Leveling Team or Translators"
+                className="text-xs"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-zinc-300 block mb-1 uppercase tracking-wider">
+                Discord Role ID (Right click role in Discord ➔ Copy ID)
+              </label>
+              <Input
+                value={discordRoleId}
+                onChange={(e) => setDiscordRoleId(e.target.value)}
+                placeholder="e.g. 1446000987742535814"
+                className="text-xs font-mono"
+              />
+            </div>
+            <div className="flex items-center justify-between pt-3 border-t border-zinc-800">
+              {manga?.discordRoleId ? (
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => updateDiscordRoleMutation.mutate({ roleId: '', roleName: '' })}
+                  disabled={updateDiscordRoleMutation.isPending}
+                  className="text-xs"
+                >
+                  Clear Role
+                </Button>
+              ) : (
+                <div />
+              )}
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setIsDiscordRoleModalOpen(false)}
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => updateDiscordRoleMutation.mutate()}
+                  disabled={updateDiscordRoleMutation.isPending}
+                  className="text-xs"
+                >
+                  {updateDiscordRoleMutation.isPending ? 'Saving...' : 'Save Role'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,28 @@
+{
+  "name": "@claimboard/discord-bot",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "tsx src/index.ts",
+    "lint": "echo 'linting discord bot'"
+  },
+  "dependencies": {
+    "@claimboard/auth": "workspace:*",
+    "@claimboard/config": "workspace:*",
+    "@claimboard/database": "workspace:*",
+    "@claimboard/shared": "workspace:*",
+    "@sapphire/framework": "^5.5.1",
+    "@sapphire/pieces": "^4.4.1",
+    "@sapphire/plugin-logger": "^4.1.0",
+    "discord.js": "^14.18.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}

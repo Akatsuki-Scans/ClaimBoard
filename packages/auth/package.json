@@ -1,0 +1,24 @@
+{
+  "name": "@claimboard/auth",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "echo 'linting auth'"
+  },
+  "dependencies": {
+    "@claimboard/database": "workspace:*",
+    "@claimboard/config": "workspace:*",
+    "@claimboard/shared": "workspace:*",
+    "bcryptjs": "^2.4.3",
+    "better-auth": "^1.7.7",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.8",
+    "typescript": "^5.7.3"
+  }
+}
