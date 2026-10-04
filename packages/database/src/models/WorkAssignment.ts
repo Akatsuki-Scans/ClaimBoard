@@ -18,6 +18,8 @@ export interface IWorkAssignment extends Document {
   submittedAt?: Date;
   completedAt?: Date;
   activeClaimId?: mongoose.Types.ObjectId;
+  discordSubmissionMessageId?: string;
+  discordSubmissionChannelId?: string;
   allowUnclaim: boolean;
   version: number; // for optimistic concurrency checks
   createdAt: Date;
@@ -42,6 +44,8 @@ const WorkAssignmentSchema = new Schema<IWorkAssignment>(
     submittedAt: { type: Date },
     completedAt: { type: Date },
     activeClaimId: { type: Schema.Types.ObjectId, ref: 'Claim' },
+    discordSubmissionMessageId: { type: String },
+    discordSubmissionChannelId: { type: String },
     allowUnclaim: { type: Boolean, default: true },
     version: { type: Number, default: 0 },
   },

@@ -6,6 +6,7 @@ export interface IManga extends Document {
   title: string;
   altTitles: string[];
   coverUrl?: string;
+  bannerUrl?: string;
   description: string;
   author: string;
   artist: string;
@@ -39,6 +40,7 @@ const MangaSchema = new Schema<IManga>(
     title: { type: String, required: true, index: true },
     altTitles: { type: [String], default: [] },
     coverUrl: { type: String },
+    bannerUrl: { type: String },
     description: { type: String, default: '' },
     author: { type: String, default: 'Unknown' },
     artist: { type: String, default: 'Unknown' },

@@ -88,3 +88,33 @@ const DiscordRoleMappingSchema = new Schema<IDiscordRoleMapping>(
 DiscordRoleMappingSchema.index({ guildId: 1, workTypeId: 1 }, { unique: true });
 
 export const DiscordRoleMappingModel: mongoose.Model<IDiscordRoleMapping> = (mongoose.models.DiscordRoleMapping as any) || mongoose.model<IDiscordRoleMapping>('DiscordRoleMapping', DiscordRoleMappingSchema);
+
+export interface IDiscordLogChannel extends Document {
+  organizationId?: mongoose.Types.ObjectId;
+  guildId: string;
+  channelId: string;
+  channelName?: string;
+  addedById?: string;
+  addedByName?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const DiscordLogChannelSchema = new Schema<IDiscordLogChannel>(
+  {
+    organizationId: { type: Schema.Types.ObjectId, ref: 'Organization' },
+    guildId: { type: String, required: true, index: true },
+    channelId: { type: String, required: true, index: true },
+    channelName: { type: String },
+    addedById: { type: String },
+    addedByName: { type: String },
+  },
+  { timestamps: true }
+);
+
+DiscordLogChannelSchema.index({ guildId: 1, channelId: 1 }, { unique: true });
+
+export const DiscordLogChannelModel: mongoose.Model<IDiscordLogChannel> =
+  (mongoose.models.DiscordLogChannel as any) ||
+  mongoose.model<IDiscordLogChannel>('DiscordLogChannel', DiscordLogChannelSchema);
+

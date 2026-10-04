@@ -1,6 +1,8 @@
 import { Client, Interaction, Message, EmbedBuilder } from 'discord.js';
 import { moduleManager } from './moduleManager';
-import { processApprove, processPending, processRevoke } from '../modules/admin';
+import { processApprove, processPending, processRevoke, checkIsAdmin } from '../modules/admin';
+import { DiscordLogChannelModel, OrganizationModel } from '@claimboard/database';
+import { BotLogger } from './botLogger';
 
 export class CommandRouter {
   private client: Client;
@@ -30,7 +32,23 @@ export class CommandRouter {
 
       console.log(`[CommandRouter] Auto-registering ${slashData.length} slash commands across ${moduleManager.getEnabledModules().length} modules (with DM support enabled)...`);
       await this.client.application.commands.set(slashData);
-      console.log(`[CommandRouter] Successfully registered ${slashData.length} slash commands with Discord.`);
+      console.log(`[CommandRouter] Successfully registered ${slashData.length} global slash commands with Discord.`);
+
+      // Also register directly to all joined guilds so changes appear INSTANTLY with zero cache delay!
+      try {
+        const oauthGuilds = await this.client.guilds.fetch();
+        for (const [guildId, oauthGuild] of oauthGuilds) {
+          try {
+            const guild = await oauthGuild.fetch();
+            await guild.commands.set(slashData);
+            console.log(`[CommandRouter] ⚡ Instantly updated ${slashData.length} slash commands in guild: "${guild.name}" (${guildId})`);
+          } catch (gErr: any) {
+            console.warn(`[CommandRouter] Notice on guild ${guildId} command sync:`, gErr?.message);
+          }
+        }
+      } catch (guildFetchErr: any) {
+        console.warn('[CommandRouter] Could not fetch guilds for instant sync:', guildFetchErr?.message);
+      }
     } catch (err) {
       console.warn('[CommandRouter] Notice on registering slash commands with Discord API:', err);
     }
@@ -111,6 +129,22 @@ export class CommandRouter {
             if (interaction.replied || interaction.deferred) return;
           } catch (err) {
             console.error(`[CommandRouter] Error handling select menu ${customId}:`, err);
+          }
+        }
+      }
+      return;
+    }
+
+    // 5. Handle Modal Submissions
+    if (interaction.isModalSubmit()) {
+      const customId = interaction.customId;
+      for (const { command } of moduleManager.getAllCommands()) {
+        if (command.handleModal) {
+          try {
+            await command.handleModal(interaction);
+            if (interaction.replied || interaction.deferred) return;
+          } catch (err) {
+            console.error(`[CommandRouter] Error handling modal ${customId}:`, err);
           }
         }
       }
@@ -205,9 +239,30 @@ export class CommandRouter {
         break;
       }
 
+      case 'submit': {
+        await message.reply(
+          `🚀 **ClaimBoard Task Submission**\nTo submit your deliverable, use the slash command in any server channel or DM:\n\`/submit series:<title> chapter:<number> task:<role> url:<link> note:[notes]\`\n\nOr submit via the web app: [My Claims](${this.webUrl}/my-claims)`
+        );
+        break;
+      }
+
       case 'approve': {
+        await message.reply(
+          `✅ **Task Deliverable Approval**\nAdministrators can approve tasks directly using the interactive **[Approve]** button received in their Admin DM, or by running:\n\`/approve series:<title> chapter:<number> task:<role> comment:[optional feedback]\`\n\nTo approve a user to log into the web app, run \`!approve-user <username>\` or \`/approve-user\`.`
+        );
+        break;
+      }
+
+      case 'manga': {
+        await message.reply(
+          `📖 **AniList Manga Search & ClaimBoard Import**\nTo search AniList metadata and import series into ClaimBoard, use:\n\`/manga title:<search query>\``
+        );
+        break;
+      }
+
+      case 'approve-user': {
         if (args.length === 0) {
-          await message.reply('⚠️ **Usage**: `!approve <username or @user> [role]`');
+          await message.reply('⚠️ **Usage**: `!approve-user <username or @user> [role]`');
           return;
         }
         const target = args[0];
@@ -216,10 +271,12 @@ export class CommandRouter {
           target,
           role,
           message.author.id,
-          message.author.tag || message.author.username
+          message.author.tag || message.author.username,
+          this.client,
+          message.guildId
         );
         if (!result.success) {
-          await message.reply(result.message || '❌ Approval failed.');
+          await message.reply(result.message || '❌ User approval failed.');
           return;
         }
         if (result.embed) {
@@ -259,6 +316,78 @@ export class CommandRouter {
 
       case 'board': {
         await message.reply(`📋 **ClaimBoard Kanban Workspace**: ${this.webUrl}/board`);
+        break;
+      }
+
+      case 'addlog': {
+        const isAdmin = await checkIsAdmin(message.author.id);
+        if (!isAdmin) {
+          await message.reply('❌ **Permission Denied**: Only administrators can configure bot log channels.');
+          return;
+        }
+        if (!message.guildId) {
+          await message.reply('❌ This command can only be used within a server channel.');
+          return;
+        }
+        const targetChannel = message.mentions.channels.first() || message.channel;
+        const existing = await DiscordLogChannelModel.findOne({ guildId: message.guildId, channelId: targetChannel.id });
+        if (existing) {
+          await message.reply(`ℹ️ <#${targetChannel.id}> is already registered as an active log channel.`);
+          return;
+        }
+        const org = await OrganizationModel.findOne();
+        await DiscordLogChannelModel.create({
+          organizationId: org?._id,
+          guildId: message.guildId,
+          channelId: targetChannel.id,
+          channelName: ('name' in targetChannel ? targetChannel.name : 'log-channel') as string,
+          addedById: message.author.id,
+          addedByName: message.author.tag || message.author.username,
+        });
+        await message.reply(`✅ Designated <#${targetChannel.id}> as the ClaimBoard bot log channel! Use \`!dellog\` or \`/dellog\` to remove it.`);
+        await BotLogger.logChannelAdded({
+          client: this.client,
+          guildId: message.guildId,
+          channelId: targetChannel.id,
+          adminTag: message.author.tag || message.author.username,
+          adminId: message.author.id,
+        });
+        break;
+      }
+
+      case 'dellog': {
+        const isAdmin = await checkIsAdmin(message.author.id);
+        if (!isAdmin) {
+          await message.reply('❌ **Permission Denied**: Only administrators can manage bot log channels.');
+          return;
+        }
+        if (!message.guildId) {
+          await message.reply('❌ This command can only be used within a server channel.');
+          return;
+        }
+        const targetChannel = message.mentions.channels.first() || message.channel;
+        let removed = await DiscordLogChannelModel.deleteOne({ guildId: message.guildId, channelId: targetChannel.id });
+        let removedId = targetChannel.id;
+        if (!removed.deletedCount) {
+          const anyLog = await DiscordLogChannelModel.findOne({ guildId: message.guildId });
+          if (anyLog) {
+            removedId = anyLog.channelId;
+            await anyLog.deleteOne();
+            removed = { deletedCount: 1 } as any;
+          }
+        }
+        if (!removed.deletedCount) {
+          await message.reply('ℹ️ No active bot log channel found for this server. Use `!addlog` or `/addlog` to set one.');
+          return;
+        }
+        await message.reply(`🗑️ Removed <#${removedId}> from bot log channels.`);
+        await BotLogger.logChannelRemoved({
+          client: this.client,
+          guildId: message.guildId,
+          channelId: removedId,
+          adminTag: message.author.tag || message.author.username,
+          adminId: message.author.id,
+        });
         break;
       }
 
