@@ -21,6 +21,9 @@ COPY packages/config/package.json ./packages/config/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/database/package.json ./packages/database/
 COPY packages/auth/package.json ./packages/auth/
+COPY packages/ui/package.json ./packages/ui/
+COPY packages/eslint-config/package.json ./packages/eslint-config/
+COPY apps/web/package.json ./apps/web/
 COPY apps/discord-bot/package.json ./apps/discord-bot/
 COPY apps/api/package.json ./apps/api/
 
@@ -30,15 +33,11 @@ COPY packages/config ./packages/config
 COPY packages/shared ./packages/shared
 COPY packages/database ./packages/database
 COPY packages/auth ./packages/auth
+COPY packages/eslint-config ./packages/eslint-config
 COPY apps/discord-bot ./apps/discord-bot
 COPY apps/api ./apps/api
 
-RUN pnpm --filter @claimboard/config build
-RUN pnpm --filter @claimboard/shared build
-RUN pnpm --filter @claimboard/database build
-RUN pnpm --filter @claimboard/auth build
-RUN pnpm --filter @claimboard/discord-bot build
-RUN pnpm --filter @claimboard/api build
+RUN pnpm turbo run build --filter=@claimboard/api...
 
 # --- Runner Stage ---
 FROM node:20-alpine AS runner

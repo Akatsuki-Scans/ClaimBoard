@@ -15,11 +15,16 @@ WORKDIR /app
 # Copy root workspace configurations
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
 
-# Copy package manifests
+# Copy package manifests across workspace to guarantee frozen lockfile integrity
 COPY packages/config/package.json ./packages/config/
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/database/package.json ./packages/database/
+COPY packages/auth/package.json ./packages/auth/
 COPY packages/ui/package.json ./packages/ui/
+COPY packages/eslint-config/package.json ./packages/eslint-config/
 COPY apps/web/package.json ./apps/web/
+COPY apps/api/package.json ./apps/api/
+COPY apps/discord-bot/package.json ./apps/discord-bot/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
@@ -28,37 +33,31 @@ RUN pnpm install --frozen-lockfile
 COPY packages/config ./packages/config
 COPY packages/shared ./packages/shared
 COPY packages/ui ./packages/ui
+COPY packages/eslint-config ./packages/eslint-config
 COPY apps/web ./apps/web
 
 # Optional build arg for API URL
 ARG VITE_API_URL=""
 ENV VITE_API_URL=$VITE_API_URL
 
-# Build web application
-RUN pnpm --filter @claimboard/config build
-RUN pnpm --filter @claimboard/shared build
-RUN pnpm --filter @claimboard/ui build
-RUN pnpm --filter @claimboard/web build
+# Build web application and its dependencies via Turborepo
+RUN pnpm turbo run build --filter=@claimboard/web...
 
 # --- Production Web Runner (Nginx) ---
 FROM nginx:alpine AS runner
 
-# Default PORT if not provided by Render or Railway
-ENV PORT=80
-
-# Only substitute $PORT in nginx templates so $uri and other nginx variables are preserved
-ENV NGINX_ENVSUBST_FILTER="PORT"
-
-# Remove default nginx configs
-RUN rm -rf /etc/nginx/conf.d/*
-
-# Copy templated configuration (nginx docker entrypoint auto-evaluates env vars in /etc/nginx/templates)
-COPY docker/nginx.conf.template /etc/nginx/templates/default.conf.template
+# Remove default nginx configs and interfering entrypoint scripts
+RUN rm -rf /etc/nginx/conf.d/* /docker-entrypoint.d/*
 
 # Copy built static assets
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 
-EXPOSE 80
+# Copy dynamic multi-port entrypoint script
+COPY docker/entrypoint-web.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-CMD ["nginx", "-g", "daemon off;"]
+EXPOSE 80
+EXPOSE 8080
+
+ENTRYPOINT ["/entrypoint.sh"]
 

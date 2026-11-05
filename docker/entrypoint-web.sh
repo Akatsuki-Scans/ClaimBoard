@@ -1,0 +1,69 @@
+#!/bin/sh
+set -e
+
+PORT="${PORT:-80}"
+echo "[ClaimBoard Web] Starting Nginx on port ${PORT} (IPv4 and IPv6)..."
+
+EXTRA_LISTEN=""
+if [ "$PORT" != "80" ]; then
+  EXTRA_LISTEN="    listen 80;
+    listen [::]:80;"
+fi
+
+cat <<EOF > /etc/nginx/conf.d/default.conf
+server {
+    listen ${PORT} default_server;
+    listen [::]:${PORT} default_server;
+${EXTRA_LISTEN}
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied expired no-cache no-store private auth;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml application/javascript application/json image/svg+xml;
+
+    # Vite hashed production assets (safe for long-lived immutable caching)
+    location ^~ /assets/ {
+        expires 1y;
+        access_log off;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    }
+
+    # Root public assets (unhashed files like favicon, manifest, icons: short-lived revalidation)
+    location ~* \.(?:ico|png|svg|jpe?g|gif|webp|json|txt|xml)$ {
+        expires 1h;
+        access_log off;
+        add_header Cache-Control "public, max-age=3600, must-revalidate" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    }
+
+    # SPA routing: always serve index.html with NO-CACHE so chunk updates never break
+    location / {
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    # Health check endpoint
+    location = /health {
+        access_log off;
+        default_type text/plain;
+        return 200 "healthy\n";
+    }
+}
+EOF
+
+echo "[ClaimBoard Web] Generated production Nginx configuration successfully."
+exec nginx -g "daemon off;"
