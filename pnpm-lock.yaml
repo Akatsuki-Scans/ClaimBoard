@@ -26,6 +26,9 @@ importers:
       '@claimboard/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@claimboard/discord-bot':
+        specifier: workspace:*
+        version: link:../discord-bot
       '@claimboard/shared':
         specifier: workspace:*
         version: link:../../packages/shared

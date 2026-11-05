@@ -28,30 +28,35 @@ Inside your Railway project:
 1. Click **+ New** -> **Database** -> **Add MongoDB**.
 2. Click **+ New** -> **Database** -> **Add Redis**.
 
-### Step 4: Configure Backend Service (`api`)
+### Step 4: Configure Backend Service (`claimboard-api`) — API + Discord Bot Unified
 1. Click on the imported repository service (or rename it to `claimboard-api`).
 2. Go to **Settings** -> **Build**:
    - **Builder**: `Dockerfile`
-   - **Dockerfile Path**: `Dockerfile.api`
+   - **Dockerfile Path**: `Dockerfile` (or `Dockerfile.api`)
 3. Go to **Variables** and add:
    ```env
    NODE_ENV=production
    MONGODB_URI=${{MongoDB.MONGO_URL}}
+   MONGODB_DB_NAME=claimboard
    REDIS_URL=${{Redis.REDIS_URL}}
    JWT_SECRET=generate-a-secure-random-secret-key-min-32-chars
    FRONTEND_URL=https://your-frontend.up.railway.app
-   DISCORD_BOT_TOKEN=optional_bot_token_here
-   DISCORD_CLIENT_ID=optional_client_id_here
-   DISCORD_CLIENT_SECRET=optional_client_secret_here
+   DISCORD_BOT_TOKEN=your_discord_bot_token_here
+   DISCORD_CLIENT_ID=your_discord_client_id_here
+   DISCORD_CLIENT_SECRET=your_discord_client_secret_here
+   BOT_ADMIN_DISCORD_ID=your_discord_user_id_here
    ```
+   > [!NOTE]
+   > The ClaimBoard API backend automatically launches and manages the Sapphire Discord Bot worker inside the same deployment when `DISCORD_BOT_TOKEN` is present! There is **no need to configure or pay for a separate bot container**.
+
 4. Go to **Settings** -> **Networking** and click **Generate Domain** (e.g. `https://claimboard-api-production.up.railway.app`).
 
-### Step 5: Configure Frontend Service (`web`)
+### Step 5: Configure Frontend Service (`claimboard-web`)
 1. Click **+ New** -> **GitHub Repo** -> select the same `ClaimBoard` repository.
-2. Rename service to `claimboard-web`.
+2. Rename the service to `claimboard-web`.
 3. Go to **Settings** -> **Build**:
    - **Builder**: `Dockerfile`
-   - **Dockerfile Path**: `Dockerfile.web`
+   - **Dockerfile Path**: `Dockerfile.web`  *(Important: change from default `Dockerfile` to `Dockerfile.web`)*
 4. Go to **Variables** and add:
    ```env
    VITE_API_URL=https://claimboard-api-production.up.railway.app
@@ -59,23 +64,8 @@ Inside your Railway project:
 5. Go to **Settings** -> **Networking** and click **Generate Domain**.
 6. Update the `FRONTEND_URL` on the backend service to match your frontend domain.
 
-### Step 6: Configure Discord Bot Service (`bot`) (Optional)
-1. Click **+ New** -> **GitHub Repo** -> select the same `ClaimBoard` repository.
-2. Rename service to `claimboard-bot`.
-3. Go to **Settings** -> **Build**:
-   - **Builder**: `Dockerfile`
-   - **Dockerfile Path**: `Dockerfile.bot`
-4. Go to **Variables** and add:
-   ```env
-   NODE_ENV=production
-   MONGODB_URI=${{MongoDB.MONGO_URL}}
-   MONGODB_DB_NAME=claimboard
-   DISCORD_BOT_TOKEN=your_bot_token_here
-   DISCORD_CLIENT_ID=your_client_id_here
-   DISCORD_CLIENT_SECRET=your_client_secret_here
-   DISCORD_PUBLIC_KEY=your_public_key_here
-   BOT_ADMIN_DISCORD_ID=your_discord_id_here
-   ```
+### Step 6: Standalone Discord Bot Worker (Optional)
+If you prefer running the bot in a completely isolated worker service instead of unified with the API, set `DISABLE_BOT=true` on the API service, create a new service from the repo, set **Dockerfile Path** to `Dockerfile.bot`, and pass your MongoDB and Discord variables there.
 
 ---
 

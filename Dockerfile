@@ -21,6 +21,7 @@ COPY packages/config/package.json ./packages/config/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/database/package.json ./packages/database/
 COPY packages/auth/package.json ./packages/auth/
+COPY apps/discord-bot/package.json ./apps/discord-bot/
 COPY apps/api/package.json ./apps/api/
 
 RUN pnpm install --frozen-lockfile
@@ -29,12 +30,14 @@ COPY packages/config ./packages/config
 COPY packages/shared ./packages/shared
 COPY packages/database ./packages/database
 COPY packages/auth ./packages/auth
+COPY apps/discord-bot ./apps/discord-bot
 COPY apps/api ./apps/api
 
 RUN pnpm --filter @claimboard/config build
 RUN pnpm --filter @claimboard/shared build
 RUN pnpm --filter @claimboard/database build
 RUN pnpm --filter @claimboard/auth build
+RUN pnpm --filter @claimboard/discord-bot build
 RUN pnpm --filter @claimboard/api build
 
 # --- Runner Stage ---
@@ -55,6 +58,7 @@ COPY --from=builder --chown=claimboard:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=claimboard:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=claimboard:nodejs /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=builder --chown=claimboard:nodejs /app/packages ./packages
+COPY --from=builder --chown=claimboard:nodejs /app/apps/discord-bot ./apps/discord-bot
 COPY --from=builder --chown=claimboard:nodejs /app/apps/api ./apps/api
 
 USER claimboard

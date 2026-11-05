@@ -62,7 +62,14 @@ export class ClaimBoardClient extends SapphireClient {
 export const client = new ClaimBoardClient();
 export const commandRouter = new CommandRouter(client, WEB_URL);
 
+let isBotInitialized = false;
+
 export async function setupSapphireBot() {
+  if (isBotInitialized) {
+    return client;
+  }
+  isBotInitialized = true;
+
   console.log('=======================================================');
   console.log('  🤖 Booting ClaimBoard Modular Discord Bot System...');
   console.log('=======================================================');
@@ -70,7 +77,10 @@ export async function setupSapphireBot() {
     console.log(`[ModularBot] Environment loaded from: ${loadedEnvPath}`);
   }
 
-  // 1. Connect to MongoDB Atlas
+  const activeWebUrl = process.env.FRONTEND_URL || process.env.WEB_URL || WEB_URL;
+  commandRouter.setWebUrl(activeWebUrl);
+
+  // 1. Connect to MongoDB Atlas (if not already connected)
   await connectDatabase();
 
   // 2. Initialize Module Manager and register installed modules
@@ -101,7 +111,8 @@ export async function setupSapphireBot() {
   });
 
   // 4. Connect to Discord Gateway
-  if (!BOT_TOKEN || BOT_TOKEN === 'mock_discord_bot_token') {
+  const token = process.env.DISCORD_BOT_TOKEN || BOT_TOKEN;
+  if (!token || token === 'mock_discord_bot_token') {
     console.log('[ModularBot] ⚠️ Notice: DISCORD_BOT_TOKEN is set to "mock_discord_bot_token" in root .env.');
     console.log('[ModularBot] To bring the bot Online on Discord, replace DISCORD_BOT_TOKEN in root .env with your real token.');
     console.log('[ModularBot] Active registered modules:');
@@ -112,7 +123,7 @@ export async function setupSapphireBot() {
   }
 
   try {
-    await client.login(BOT_TOKEN);
+    await client.login(token);
   } catch (error: any) {
     console.error('[ModularBot] 🔴 Could not login to Discord Gateway:', error.message || error);
   }

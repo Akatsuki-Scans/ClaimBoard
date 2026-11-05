@@ -62,7 +62,7 @@ export function LoginPage() {
           </div>
           <h1 className="text-base font-semibold text-zinc-100 tracking-tight">ClaimBoard Workspace</h1>
           <p className="text-xs text-zinc-400 mt-1">
-            Production management for scanlation organizations
+            Production management for Akatsuki Scans
           </p>
         </div>
 
@@ -101,12 +101,6 @@ export function LoginPage() {
             <DiscordIcon className="h-4 w-4" />
             <span>{isLoading ? 'Connecting to Discord...' : 'Continue with Discord'}</span>
           </button>
-        </div>
-
-        <div className="mt-6 pt-4 border-t border-zinc-800/80 text-center">
-          <p className="text-[11px] text-zinc-500 font-mono">
-            ClaimBoard v1.0 • Connected to MongoDB Atlas & Discord Bot
-          </p>
         </div>
       </div>
     </div>

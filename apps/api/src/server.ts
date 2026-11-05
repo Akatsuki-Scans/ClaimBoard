@@ -123,10 +123,29 @@ export async function start() {
     console.log(`  🔍 Health Checks: http://localhost:${port}/health`);
     console.log(`=======================================================`);
 
+    // 6. Launch integrated Discord Bot worker if token is configured
+    let botClient: any = null;
+    const discordToken = process.env.DISCORD_BOT_TOKEN;
+    if (discordToken && discordToken !== 'mock_discord_bot_token' && process.env.DISABLE_BOT !== 'true') {
+      try {
+        console.log('[Server] Starting integrated Discord Bot worker...');
+        const { setupSapphireBot } = await import('@claimboard/discord-bot');
+        botClient = await setupSapphireBot();
+      } catch (botErr: any) {
+        console.error('[Server] Failed to launch integrated Discord Bot:', botErr?.message || botErr);
+      }
+    }
+
     // Graceful Shutdown
     const closeGracefully = async (signal: string) => {
       console.log(`[Server] Received signal: ${signal}. Closing gracefully...`);
       stopBackgroundJobs();
+      if (botClient && typeof botClient.destroy === 'function') {
+        try {
+          await botClient.destroy();
+          console.log('[Server] Discord Bot gateway connection closed.');
+        } catch {}
+      }
       await app.close();
       process.exit(0);
     };

@@ -13,6 +13,10 @@ export class CommandRouter {
     this.webUrl = webUrl;
   }
 
+  public setWebUrl(url: string): void {
+    this.webUrl = url;
+  }
+
   // Auto-registers all slash commands from registered modules with Discord API (enabling DM access)
   public async syncSlashCommands(): Promise<void> {
     try {

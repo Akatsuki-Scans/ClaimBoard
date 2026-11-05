@@ -22,6 +22,14 @@ services:
         generateValue: true
       - key: FRONTEND_URL
         sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: BOT_ADMIN_DISCORD_ID
+        sync: false
 
   # ClaimBoard Sapphire Discord Bot Background Worker
   - type: worker

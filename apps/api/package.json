@@ -13,6 +13,7 @@
     "@claimboard/auth": "workspace:*",
     "@claimboard/config": "workspace:*",
     "@claimboard/database": "workspace:*",
+    "@claimboard/discord-bot": "workspace:*",
     "@claimboard/shared": "workspace:*",
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^10.0.2",
