@@ -3,10 +3,9 @@
 ClaimBoard is an enterprise-grade, monorepo-architected manga scanlation operations platform built with Fastify, React (Vite), MongoDB, and Redis.
 
 Production-ready Dockerfiles and deployment blueprints are included:
-- `Dockerfile` & `Dockerfile.api` — Production Fastify API backend
-- `Dockerfile.bot` — Production Sapphire Discord bot worker
+- `Dockerfile` & `Dockerfile.api` — Production Fastify API backend with integrated Sapphire Discord bot
 - `Dockerfile.web` — High-performance Nginx static web server with dynamic `$PORT` routing
-- `docker-compose.yml` — Full-stack local orchestration (Mongo, Redis, API, Discord Bot, Web)
+- `docker-compose.yml` — Full-stack local orchestration (Mongo, Redis, API + Discord Bot, Web)
 - `render.yaml` — 1-Click Render Infrastructure-as-Code Blueprint
 - `railway.json` — Railway deployment specification
 
@@ -63,9 +62,6 @@ Inside your Railway project:
    ```
 5. Go to **Settings** -> **Networking** and click **Generate Domain**.
 6. Update the `FRONTEND_URL` on the backend service to match your frontend domain.
-
-### Step 6: Standalone Discord Bot Worker (Optional)
-If you prefer running the bot in a completely isolated worker service instead of unified with the API, set `DISABLE_BOT=true` on the API service, create a new service from the repo, set **Dockerfile Path** to `Dockerfile.bot`, and pass your MongoDB and Discord variables there.
 
 ---
 

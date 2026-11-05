@@ -31,32 +31,6 @@ services:
       - key: BOT_ADMIN_DISCORD_ID
         sync: false
 
-  # ClaimBoard Sapphire Discord Bot Background Worker
-  - type: worker
-    name: claimboard-bot
-    runtime: docker
-    dockerfilePath: Dockerfile.bot
-    dockerContext: .
-    plan: standard
-    region: oregon
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: MONGODB_URI
-        sync: false
-      - key: MONGODB_DB_NAME
-        value: claimboard
-      - key: DISCORD_CLIENT_ID
-        sync: false
-      - key: DISCORD_CLIENT_SECRET
-        sync: false
-      - key: DISCORD_BOT_TOKEN
-        sync: false
-      - key: DISCORD_PUBLIC_KEY
-        sync: false
-      - key: BOT_ADMIN_DISCORD_ID
-        sync: false
-
   # ClaimBoard Web Frontend
   - type: web
     name: claimboard-web

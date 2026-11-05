@@ -21,11 +21,11 @@ services:
     volumes:
       - redis_data:/data
 
-  # Fastify Backend API
+  # Fastify Backend API with Integrated Discord Bot
   api:
     build:
       context: .
-      dockerfile: Dockerfile.api
+      dockerfile: Dockerfile
     container_name: claimboard-api
     restart: unless-stopped
     ports:
@@ -41,24 +41,6 @@ services:
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=production-secret-change-me-in-railway-render
       - FRONTEND_URL=http://localhost:3000
-
-  # Sapphire Discord Bot
-  bot:
-    build:
-      context: .
-      dockerfile: Dockerfile.bot
-    container_name: claimboard-bot
-    restart: unless-stopped
-    depends_on:
-      - mongo
-      - redis
-      - api
-    environment:
-      - NODE_ENV=production
-      - MONGODB_URI=mongodb://mongo:27017/claimboard
-      - MONGODB_DB_NAME=claimboard
-      - API_URL=http://api:4000
-      - WEB_URL=http://localhost:3000
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
       - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}

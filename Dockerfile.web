@@ -46,6 +46,9 @@ FROM nginx:alpine AS runner
 # Default PORT if not provided by Render or Railway
 ENV PORT=80
 
+# Only substitute $PORT in nginx templates so $uri and other nginx variables are preserved
+ENV NGINX_ENVSUBST_FILTER="PORT"
+
 # Remove default nginx configs
 RUN rm -rf /etc/nginx/conf.d/*
 
