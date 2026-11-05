@@ -8,6 +8,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@claimboard/ui': path.resolve(__dirname, '../../packages/ui/src'),
+      '@claimboard/shared': path.resolve(__dirname, '../../packages/shared/src'),
     },
   },
   server: {
