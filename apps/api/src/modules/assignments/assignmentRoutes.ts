@@ -37,7 +37,9 @@ export async function assignmentRoutes(fastify: FastifyInstance) {
       chapterId: a.chapterId?._id?.toString() || a.chapterId?.toString(),
       workTypeId: a.workTypeId?._id?.toString() || a.workTypeId?.toString(),
       manga: a.mangaId ? { id: a.mangaId._id?.toString(), title: a.mangaId.title, coverUrl: a.mangaId.coverUrl } : undefined,
+      mangaTitle: a.mangaId?.title || 'Unknown Manga',
       chapter: a.chapterId ? { id: a.chapterId._id?.toString(), chapterNumber: a.chapterId.chapterNumber, title: a.chapterId.title, priority: a.chapterId.priority } : undefined,
+      chapterNumber: a.chapterId?.chapterNumber,
       workType: a.workTypeId ? {
         id: a.workTypeId._id?.toString(),
         name: a.workTypeId.name,
@@ -46,6 +48,7 @@ export async function assignmentRoutes(fastify: FastifyInstance) {
         requiresReview: a.workTypeId.requiresReview,
         estimatedWorkloadHours: a.workTypeId.estimatedWorkloadHours,
       } : undefined,
+      workTypeName: a.workTypeId?.name,
       status: a.status,
       priority: a.priority,
       deadline: a.deadline,
@@ -76,7 +79,7 @@ export async function assignmentRoutes(fastify: FastifyInstance) {
 
     const assignments = await WorkAssignmentModel.find(filter)
       .populate('workTypeId')
-      .populate('mangaId', 'title')
+      .populate('mangaId', 'title coverUrl')
       .populate('chapterId', 'chapterNumber title')
       .sort({ createdAt: 1 })
       .lean();
@@ -86,7 +89,23 @@ export async function assignmentRoutes(fastify: FastifyInstance) {
       data: assignments.map((a: any) => ({
         ...a,
         id: a._id.toString(),
+        mangaId: a.mangaId?._id ? a.mangaId._id.toString() : a.mangaId?.toString(),
+        chapterId: a.chapterId?._id ? a.chapterId._id.toString() : a.chapterId?.toString(),
+        workTypeId: a.workTypeId?._id ? a.workTypeId._id.toString() : a.workTypeId?.toString(),
+        manga: a.mangaId && typeof a.mangaId === 'object' ? {
+          id: a.mangaId._id?.toString(),
+          title: a.mangaId.title,
+          coverUrl: a.mangaId.coverUrl,
+        } : undefined,
+        mangaTitle: a.mangaId?.title || (typeof a.mangaId === 'string' ? a.mangaId : 'Unknown Manga'),
+        chapter: a.chapterId && typeof a.chapterId === 'object' ? {
+          id: a.chapterId._id?.toString(),
+          chapterNumber: a.chapterId.chapterNumber,
+          title: a.chapterId.title,
+        } : undefined,
+        chapterNumber: a.chapterId?.chapterNumber,
         workType: a.workTypeId,
+        workTypeName: a.workTypeId?.name,
       })),
     });
   });

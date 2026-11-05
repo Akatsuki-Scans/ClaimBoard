@@ -22,7 +22,6 @@ import { AdminWorkTypesPage } from './features/admin/AdminWorkTypesPage';
 import { AdminDiscordPage } from './features/admin/AdminDiscordPage';
 import { AdminAnalyticsPage } from './features/admin/AdminAnalyticsPage';
 import { AdminAuditPage } from './features/admin/AdminAuditPage';
-import { AdminSettingsPage } from './features/admin/AdminSettingsPage';
 
 export function App() {
   return (
@@ -41,11 +40,11 @@ export function App() {
         <Route path="/pipeline" element={<PipelinePage />} />
         <Route path="/pipeline/:mangaId/:chapterId" element={<PipelinePage />} />
         <Route path="/pipeline/:chapterId" element={<PipelinePage />} />
+        <Route path="/manga" element={<MangaListPage />} />
         <Route path="/manga/:id" element={<MangaDetailPage />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/team" element={<TeamPage />} />
         <Route path="/analytics" element={<AdminAnalyticsPage />} />
-        <Route path="/settings" element={<AdminSettingsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
 
         {/* Admin Suite Routes */}
@@ -54,13 +53,13 @@ export function App() {
         <Route path="/admin/assignments" element={<AdminAssignmentsPage />} />
         <Route path="/admin/claims" element={<AdminClaimsPage />} />
         <Route path="/admin/users" element={<AdminUsersPage />} />
-        <Route path="/admin/roles" element={<AdminUsersPage />} />
+        <Route path="/admin/roles" element={<AdminDiscordPage />} />
         <Route path="/admin/work-types" element={<AdminWorkTypesPage />} />
         <Route path="/admin/templates" element={<AdminWorkTypesPage />} />
+        <Route path="/admin/channels" element={<AdminDiscordPage />} />
         <Route path="/admin/discord" element={<AdminDiscordPage />} />
         <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
         <Route path="/admin/audit" element={<AdminAuditPage />} />
-        <Route path="/admin/settings" element={<AdminSettingsPage />} />
       </Route>
 
       {/* Fallback */}

@@ -1,12 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '../../lib/api';
+import { AdminNavTabs } from '../../components/admin/AdminNavTabs';
 import { searchAnilistManga } from '../../lib/anilist';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
-import { Briefcase, Sparkles, UserCheck, Plus, Clock, AlertTriangle, Layers } from 'lucide-react';
+import {
+  OpenWorkIcon,
+  UserCheckIcon,
+  PlusIcon,
+  ClockIcon,
+  AlertTriangleIcon,
+  LayersIcon,
+} from '../../components/ui/icon';
+import { Lock } from 'lucide-react';
 
 export function AdminAssignmentsPage() {
   const queryClient = useQueryClient();
@@ -126,32 +135,35 @@ export function AdminAssignmentsPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto text-zinc-100 select-none pb-12">
+      {/* Top Admin Sub-Navigation Tabs */}
+      <AdminNavTabs />
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
         <div>
-          <h2 className="text-lg font-bold tracking-tight text-zinc-100 flex items-center gap-2">
-            <Briefcase className="h-5 w-5 text-indigo-400" />
-            Task Assignments & Allocations
+          <h2 className="text-lg font-semibold tracking-tight text-zinc-100 flex items-center gap-2">
+            <OpenWorkIcon className="h-4 w-4 text-zinc-400" />
+            Task assignments & allocations
           </h2>
           <p className="text-xs text-zinc-400 mt-0.5">
-            Create production slots, specify chapter numbers, and apply automated pipeline templates.
+            Create production slots, specify chapter numbers, and apply automated pipeline templates
           </p>
         </div>
 
-        <Button variant="primary" size="sm" onClick={() => setIsAssignModalOpen(true)}>
-          <Plus className="h-4 w-4 mr-1.5" />
-          Create Work Assignment
+        <Button variant="primary" size="sm" onClick={() => setIsAssignModalOpen(true)} className="h-8 gap-1.5">
+          <PlusIcon className="h-3.5 w-3.5" />
+          Create assignment
         </Button>
       </div>
 
-      {/* Smart Suggestions Callout */}
-      <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 space-y-3">
+      {/* Worker Allocation Suggestions */}
+      <div className="rounded-lg border border-zinc-800 bg-[#111215] p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
-            <Sparkles className="h-4 w-4 text-indigo-400" />
-            Smart Worker Allocation Recommendations
+            <UserCheckIcon className="h-4 w-4 text-zinc-400" />
+            Worker Allocation Recommendations
           </div>
-          <span className="text-[10px] text-zinc-500 font-mono">LIVE LOAD BALANCING</span>
+          <span className="text-[10px] text-zinc-500 font-mono">Live workload balancing</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -199,7 +211,11 @@ export function AdminAssignmentsPage() {
                     <Badge variant={a.status === 'COMPLETED' ? 'success' : a.status === 'OPEN' ? 'default' : 'info'}>
                       {a.status}
                     </Badge>
-                    {a.isBlocked && <span className="text-[10px] text-amber-400">🔒 Blocked</span>}
+                    {a.isBlocked && (
+                      <span className="text-[10px] text-amber-400 font-mono flex items-center gap-1">
+                        <Lock className="h-3 w-3" /> Blocked
+                      </span>
+                    )}
                   </div>
                   <div className="text-[11px] text-zinc-500">
                     Assigned worker: <strong className="text-zinc-300">{a.assignedWorkerName || 'None (Open for Claim)'}</strong>

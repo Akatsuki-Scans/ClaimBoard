@@ -1,0 +1,64 @@
+services:
+  # ClaimBoard Fastify Production API
+  - type: web
+    name: claimboard-api
+    runtime: docker
+    dockerfilePath: Dockerfile.api
+    dockerContext: .
+    plan: standard
+    region: oregon
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB_NAME
+        value: claimboard
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false
+
+  # ClaimBoard Sapphire Discord Bot Background Worker
+  - type: worker
+    name: claimboard-bot
+    runtime: docker
+    dockerfilePath: Dockerfile.bot
+    dockerContext: .
+    plan: standard
+    region: oregon
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB_NAME
+        value: claimboard
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_PUBLIC_KEY
+        sync: false
+      - key: BOT_ADMIN_DISCORD_ID
+        sync: false
+
+  # ClaimBoard Web Frontend
+  - type: web
+    name: claimboard-web
+    runtime: docker
+    dockerfilePath: Dockerfile.web
+    dockerContext: .
+    plan: standard
+    region: oregon
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: VITE_API_URL
+        sync: false

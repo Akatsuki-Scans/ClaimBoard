@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { NotificationModel } from '@claimboard/database';
+import { NotificationModel, WorkAssignmentModel } from '@claimboard/database';
 
 export async function notificationRoutes(fastify: FastifyInstance) {
   // Get User Notifications
@@ -42,7 +42,13 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       { $set: { isRead: true } }
     );
 
-    return reply.send({ success: true, data: { message: 'Marked as read' } });
+    const unreadCount = await NotificationModel.countDocuments({
+      organizationId: context.organizationId,
+      userId: context.user.id,
+      isRead: false,
+    });
+
+    return reply.send({ success: true, data: { message: 'Marked as read', unreadCount } });
   });
 
   // Mark All Notifications as Read
@@ -54,6 +60,6 @@ export async function notificationRoutes(fastify: FastifyInstance) {
       { $set: { isRead: true } }
     );
 
-    return reply.send({ success: true, data: { message: 'All notifications marked as read' } });
+    return reply.send({ success: true, data: { message: 'All notifications marked as read', unreadCount: 0 } });
   });
 }

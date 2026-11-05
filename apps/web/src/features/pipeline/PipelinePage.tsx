@@ -21,7 +21,7 @@ import {
   ChevronRight,
   GripVertical,
   Upload,
-  Sparkles,
+  FileCheck,
   FileText,
   User,
   Kanban,
@@ -428,7 +428,7 @@ export function PipelinePage() {
 
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+                  <span className="text-xs font-medium text-zinc-300">
                     {activeChapter.mangaTitle}
                   </span>
                   <span className="text-zinc-600">•</span>
@@ -494,7 +494,7 @@ export function PipelinePage() {
                         className="h-2 w-2 rounded-full"
                         style={{ backgroundColor: column.accentColor }}
                       />
-                      <h3 className="text-xs font-bold text-zinc-200 uppercase tracking-wide">
+                      <h3 className="text-xs font-semibold text-zinc-200">
                         {column.title}
                       </h3>
                     </div>
@@ -594,9 +594,9 @@ export function PipelinePage() {
                               {hasSub && stage.latestDeliverable ? (
                                 <div className="rounded-lg bg-zinc-900/90 border border-zinc-700/60 p-2.5 space-y-2 hover:border-zinc-500 transition-colors">
                                   <div className="flex items-center justify-between">
-                                    <span className="text-[10px] font-mono text-zinc-300 uppercase tracking-wider flex items-center gap-1">
-                                      <Sparkles className="h-2.5 w-2.5" />
-                                      Rev #{stage.latestDeliverable.revision} Submitted
+                                    <span className="text-[10px] font-mono text-zinc-300 flex items-center gap-1">
+                                      <FileCheck className="h-3 w-3 text-zinc-400" />
+                                      Rev #{stage.latestDeliverable.revision} submitted
                                     </span>
                                     <span className="text-[10px] text-zinc-500">
                                       {stage.deliverablesCount && stage.deliverablesCount > 1
@@ -904,8 +904,8 @@ export function PipelinePage() {
                     {/* Worker Notes if any */}
                     {inspectedStage.latestDeliverable.notes && (
                       <div className="p-3 rounded-lg bg-zinc-950/80 border border-zinc-800/80">
-                        <span className="text-[11px] text-zinc-500 font-medium uppercase tracking-wider block mb-1">
-                          Notes from Worker:
+                        <span className="text-[11px] text-zinc-500 font-medium block mb-1">
+                          Notes from worker:
                         </span>
                         <p className="text-xs text-zinc-300 italic whitespace-pre-wrap">
                           "{inspectedStage.latestDeliverable.notes}"
@@ -1220,7 +1220,7 @@ export function PipelinePage() {
                     )}
 
                     <div className="min-w-0 flex-1">
-                      <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block truncate">
+                      <span className="text-[11px] font-medium text-zinc-400 block truncate">
                         {ch.mangaTitle}
                       </span>
                       <h3 className="text-sm font-bold text-white group-hover:text-zinc-100 transition-colors mt-0.5 truncate">

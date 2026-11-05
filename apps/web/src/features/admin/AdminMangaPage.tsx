@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '../../lib/api';
+import { AdminNavTabs } from '../../components/admin/AdminNavTabs';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Input, Textarea } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { AnilistMangaSelect } from '../../components/manga/AnilistMangaSelect';
-import { BookOpen, Plus, Sparkles, Layers } from 'lucide-react';
+import { MangaIcon, PlusIcon, SearchIcon, LayersIcon } from '../../components/ui/icon';
+import { MangaCover } from '../../components/ui/Avatar';
 
 export function AdminMangaPage() {
   const queryClient = useQueryClient();
@@ -52,21 +54,24 @@ export function AdminMangaPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto text-zinc-100 select-none pb-12">
+      {/* Top Admin Sub-Navigation Tabs */}
+      <AdminNavTabs />
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
         <div>
-          <h2 className="text-lg font-bold tracking-tight text-zinc-100 flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-indigo-400" />
-            Manga & Series Catalog Management
+          <h2 className="text-lg font-semibold tracking-tight text-zinc-100 flex items-center gap-2">
+            <MangaIcon className="h-4 w-4 text-zinc-400" />
+            Manga & series catalog
           </h2>
           <p className="text-xs text-zinc-400 mt-0.5">
-            Create and maintain series metadata, default pipelines, and release cadences.
+            Create and maintain series metadata, chapter configurations, and release cadences
           </p>
         </div>
 
-        <Button variant="primary" size="sm" onClick={() => setIsAddMangaOpen(true)}>
-          <Plus className="h-4 w-4 mr-1.5" />
-          Add Manga Series
+        <Button variant="primary" size="sm" onClick={() => setIsAddMangaOpen(true)} className="h-8 gap-1.5">
+          <PlusIcon className="h-3.5 w-3.5" />
+          Add series
         </Button>
       </div>
 
@@ -77,11 +82,7 @@ export function AdminMangaPage() {
           {mangas?.map((m) => (
             <div key={m.id} className="p-4 flex items-center justify-between hover:bg-zinc-800/20 transition-colors">
               <div className="flex items-center gap-3">
-                <img
-                  src={m.coverUrl || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400'}
-                  alt={m.title}
-                  className="h-10 w-8 object-cover rounded border border-zinc-700"
-                />
+                <MangaCover src={m.coverUrl} title={m.title} size="md" />
                 <div>
                   <div className="font-semibold text-sm text-zinc-100">{m.title}</div>
                   <div className="text-zinc-500 text-[11px]">
@@ -116,8 +117,8 @@ export function AdminMangaPage() {
           {/* AniList Live Search & Auto-fill */}
           <div className="p-3 rounded-lg bg-indigo-950/30 border border-indigo-800/50 space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-indigo-400" /> Auto-fill with AniList Database
+              <span className="text-[11px] font-medium text-zinc-300 flex items-center gap-1.5">
+                <SearchIcon className="h-3.5 w-3.5 text-zinc-400" /> Search AniList database
               </span>
             </div>
             <AnilistMangaSelect

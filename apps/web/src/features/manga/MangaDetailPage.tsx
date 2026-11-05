@@ -17,7 +17,6 @@ import {
   Hash,
   ArrowRight,
   ExternalLink,
-  Sparkles,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
@@ -272,28 +271,28 @@ export function MangaDetailPage() {
       </div>
 
       {/* SERIES LATEST CHAPTER HERO BANNER (AniList + DB Integration) */}
-      <div className="rounded-xl border border-indigo-900/60 bg-gradient-to-r from-indigo-950/40 via-zinc-900/40 to-zinc-950 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+      <div className="rounded-xl border border-zinc-800 bg-[#111215] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider bg-indigo-500 text-white">
-              Latest Chapter
+            <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-800 text-zinc-300 border border-zinc-700/60">
+              Latest chapter
             </span>
             {isFetchingAnilist && (
               <span className="text-[11px] text-zinc-400 font-mono">Syncing with AniList...</span>
             )}
           </div>
-          <div className="text-lg font-bold text-white flex items-center gap-2.5">
+          <div className="text-base font-semibold text-zinc-100 flex items-center gap-2.5">
             <span>Chapter {latestChapterNumber}</span>
             {latestDbChapter?.title && (
-              <span className="text-sm text-zinc-400 font-normal">({latestDbChapter.title})</span>
+              <span className="text-xs text-zinc-400 font-normal">({latestDbChapter.title})</span>
             )}
           </div>
           <div className="text-xs text-zinc-400 flex items-center gap-3">
             <span>
-              Status: <strong className="text-indigo-300">{latestDbChapter?.status || 'Active'}</strong>
+              Status: <strong className="text-zinc-200 font-medium">{latestDbChapter?.status || 'Active'}</strong>
             </span>
             {anilistData?.chapters && (
-              <span>• Official AniList Chapters: {anilistData.chapters}</span>
+              <span>• Official AniList chapters: {anilistData.chapters}</span>
             )}
           </div>
         </div>
@@ -486,8 +485,8 @@ export function MangaDetailPage() {
               Configure the Discord role to automatically tag whenever new chapters of <strong className="text-white">{manga?.title}</strong> are assigned using <code className="text-indigo-300 bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-800/40">/assign</code> in your Discord server.
             </p>
             <div>
-              <label className="text-[11px] font-semibold text-zinc-300 block mb-1 uppercase tracking-wider">
-                Discord Role Name (e.g. Solo Leveling Team)
+              <label className="text-[11px] font-medium text-zinc-300 block mb-1">
+                Discord role name (e.g. Solo Leveling Team)
               </label>
               <Input
                 value={discordRoleName}
@@ -497,8 +496,8 @@ export function MangaDetailPage() {
               />
             </div>
             <div>
-              <label className="text-[11px] font-semibold text-zinc-300 block mb-1 uppercase tracking-wider">
-                Discord Role ID (Right click role in Discord ➔ Copy ID)
+              <label className="text-[11px] font-medium text-zinc-300 block mb-1">
+                Discord role ID (Right click role in Discord ➔ Copy ID)
               </label>
               <Input
                 value={discordRoleId}

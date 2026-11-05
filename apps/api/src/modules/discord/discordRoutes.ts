@@ -41,6 +41,25 @@ export async function discordRoutes(fastify: FastifyInstance) {
     });
   });
 
+  // Delete Channel Mapping
+  fastify.delete('/channels/:id', async (request, reply) => {
+    const context = await request.requirePermission('discord.manage');
+    const { id } = request.params as any;
+
+    await DiscordChannelModel.deleteOne({ _id: id, organizationId: context.organizationId });
+
+    await AuditLogModel.create({
+      organizationId: context.organizationId,
+      actorId: context.user.id,
+      actorName: context.user.displayName,
+      action: 'DISCORD_CHANNEL_UNMAPPED',
+      entity: 'DiscordChannel',
+      entityId: id,
+    });
+
+    return reply.send({ success: true, message: 'Channel mapping deleted' });
+  });
+
   // Save Channel Mapping (Specification #40 & #67)
   fastify.post('/channels', async (request, reply) => {
     const context = await request.requirePermission('discord.manage');
@@ -103,19 +122,55 @@ export async function discordRoutes(fastify: FastifyInstance) {
     const context = await request.requirePermission('discord.manage');
     const { guildId, roleId, roleName, workTypeId } = (request.body as any) || {};
 
+    if (!workTypeId || !roleId) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: API_ERROR_CODES.VALIDATION_ERROR, message: 'workTypeId and roleId are required' },
+      });
+    }
+
     const mapping = await DiscordRoleMappingModel.findOneAndUpdate(
       { guildId: guildId || 'guild_primary', workTypeId },
       {
         $set: {
           organizationId: context.organizationId,
           roleId,
-          roleName: roleName || `@Role-${roleId}`,
+          roleName: roleName ? (roleName.startsWith('@') ? roleName : `@${roleName}`) : `@Role-${roleId}`,
         },
       },
       { upsert: true, new: true }
     );
 
+    await AuditLogModel.create({
+      organizationId: context.organizationId,
+      actorId: context.user.id,
+      actorName: context.user.displayName,
+      action: 'DISCORD_ROLE_MAPPED',
+      entity: 'DiscordRoleMapping',
+      entityId: mapping._id.toString(),
+      after: { workTypeId, roleId, roleName },
+    });
+
     return reply.send({ success: true, data: mapping });
+  });
+
+  // Delete Role Mapping
+  fastify.delete('/roles/:id', async (request, reply) => {
+    const context = await request.requirePermission('discord.manage');
+    const { id } = request.params as any;
+
+    await DiscordRoleMappingModel.deleteOne({ _id: id, organizationId: context.organizationId });
+
+    await AuditLogModel.create({
+      organizationId: context.organizationId,
+      actorId: context.user.id,
+      actorName: context.user.displayName,
+      action: 'DISCORD_ROLE_UNMAPPED',
+      entity: 'DiscordRoleMapping',
+      entityId: id,
+    });
+
+    return reply.send({ success: true, message: 'Role mapping deleted' });
   });
 
   // Discord Slash Command Webhook: /assign (Specification #11)

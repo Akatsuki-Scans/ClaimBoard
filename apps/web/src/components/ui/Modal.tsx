@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { CloseIcon } from './icon';
 import { cn } from '@claimboard/ui';
 
 export interface ModalProps {
@@ -26,38 +27,54 @@ export function Modal({ isOpen, onClose, title, description, children, className
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity"
-        onClick={onClose}
-      />
-
-      {/* Modal Dialog */}
-      <div
-        className={cn(
-          'relative z-50 w-full max-w-lg rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-xl animate-in fade-in zoom-in-95 duration-150',
-          className
-        )}
-      >
-        <div className="flex items-start justify-between pb-3">
-          <div>
-            <h2 className="text-base font-semibold text-zinc-100">{title}</h2>
-            {description && <p className="mt-0.5 text-xs text-zinc-400">{description}</p>}
-          </div>
-          <button
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          key="modal-backdrop-root"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.12, ease: 'easeOut' }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm"
             onClick={onClose}
-            className="rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+          />
 
-        <div className="mt-2">{children}</div>
-      </div>
-    </div>
+          {/* Modal Dialog */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97, y: 6 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97, y: 6 }}
+            transition={{ duration: 0.12, ease: 'easeOut' }}
+            className={cn(
+              'relative z-50 w-full max-w-lg rounded-xl border border-zinc-800 bg-[#111215] p-6 shadow-2xl text-zinc-100',
+              className
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between pb-3 border-b border-zinc-800/80">
+              <div>
+                <h2 className="text-sm font-semibold text-zinc-100 tracking-tight">{title}</h2>
+                {description && <p className="mt-1 text-xs text-zinc-400 leading-normal">{description}</p>}
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+                aria-label="Close modal"
+              >
+                <CloseIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="pt-4">{children}</div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

@@ -1,0 +1,86 @@
+services:
+  # MongoDB Database
+  mongo:
+    image: mongo:6.0
+    container_name: claimboard-mongo
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=claimboard
+
+  # Redis Cache & Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: claimboard-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
+  # Fastify Backend API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: claimboard-api
+    restart: unless-stopped
+    ports:
+      - '4000:4000'
+    depends_on:
+      - mongo
+      - redis
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - MONGODB_URI=mongodb://mongo:27017/claimboard
+      - MONGODB_DB_NAME=claimboard
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=production-secret-change-me-in-railway-render
+      - FRONTEND_URL=http://localhost:3000
+
+  # Sapphire Discord Bot
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    container_name: claimboard-bot
+    restart: unless-stopped
+    depends_on:
+      - mongo
+      - redis
+      - api
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongo:27017/claimboard
+      - MONGODB_DB_NAME=claimboard
+      - API_URL=http://api:4000
+      - WEB_URL=http://localhost:3000
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_PUBLIC_KEY=${DISCORD_PUBLIC_KEY}
+      - BOT_ADMIN_DISCORD_ID=${BOT_ADMIN_DISCORD_ID}
+
+  # React Web Frontend (Nginx)
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        - VITE_API_URL=http://localhost:4000
+    container_name: claimboard-web
+    restart: unless-stopped
+    ports:
+      - '3000:80'
+    depends_on:
+      - api
+    environment:
+      - PORT=80
+
+volumes:
+  mongo_data:
+  redis_data:

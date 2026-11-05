@@ -86,7 +86,7 @@ export function AnilistMangaSelect({
       {/* AniList Results Dropdown */}
       {isOpen && results.length > 0 && (
         <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-xl border border-zinc-800 bg-[#18181b] shadow-2xl max-h-80 overflow-y-auto divide-y divide-zinc-800/60 backdrop-blur-md">
-          <div className="px-3 py-1.5 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-900/60 sticky top-0 flex items-center justify-between">
+          <div className="px-3 py-1.5 text-[10px] font-medium text-zinc-400 bg-zinc-900/60 sticky top-0 flex items-center justify-between font-mono">
             <span>AniList Manga Database</span>
             <span>{results.length} results</span>
           </div>
