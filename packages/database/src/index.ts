@@ -14,4 +14,5 @@ export * from './models/Review';
 export * from './models/DiscordModels';
 export * from './models/AuditAndNotificationModels';
 export * from './models/Team';
+export * from './models/Honeypot';
 export * from './services/productionService';

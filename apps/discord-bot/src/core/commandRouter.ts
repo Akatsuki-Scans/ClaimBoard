@@ -1,6 +1,7 @@
 import { Client, Interaction, Message, EmbedBuilder } from 'discord.js';
 import { moduleManager } from './moduleManager';
 import { processApprove, processPending, processRevoke, checkIsAdmin } from '../modules/admin';
+import { handleHoneypotMessage } from '../modules/honeypot';
 import { DiscordLogChannelModel, OrganizationModel } from '@claimboard/database';
 import { BotLogger } from './botLogger';
 
@@ -123,8 +124,8 @@ export class CommandRouter {
       return;
     }
 
-    // 4. Handle String Select Menus
-    if (interaction.isStringSelectMenu()) {
+    // 4. Handle Select Menus (String, Channel, Role, etc.)
+    if (interaction.isAnySelectMenu()) {
       const customId = interaction.customId;
       for (const { command } of moduleManager.getAllCommands()) {
         if (command.handleSelect) {
@@ -160,6 +161,16 @@ export class CommandRouter {
   public async handleMessage(message: Message): Promise<void> {
     // Ignore bots
     if (message.author.bot) return;
+
+    // Check if message is in a registered Honeypot trap channel
+    if (message.guild && !message.system) {
+      try {
+        const handled = await handleHoneypotMessage(message);
+        if (handled) return;
+      } catch (err) {
+        console.error('[CommandRouter] Error checking honeypot message:', err);
+      }
+    }
 
     const isDM = !message.guild;
     const content = message.content.trim();

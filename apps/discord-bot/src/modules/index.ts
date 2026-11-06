@@ -3,6 +3,7 @@ import { claimboardModule } from './claimboard';
 import { systemModule } from './system';
 import { adminModule } from './admin';
 import { anilistModule } from './anilist';
+import { honeypotModule } from './honeypot';
 
 // All installed bot modules
 export const installedModules: BotModule[] = [
@@ -10,7 +11,9 @@ export const installedModules: BotModule[] = [
   systemModule,
   adminModule,
   anilistModule,
+  honeypotModule,
 ];
 
-export { claimboardModule, systemModule, adminModule, anilistModule };
+export { claimboardModule, systemModule, adminModule, anilistModule, honeypotModule };
+
 

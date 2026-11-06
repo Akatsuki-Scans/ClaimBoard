@@ -7,6 +7,7 @@ import {
   AutocompleteInteraction,
   ButtonInteraction,
   StringSelectMenuInteraction,
+  AnySelectMenuInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
 
@@ -29,7 +30,7 @@ export interface BotCommand {
   execute: (ctx: CommandContext) => Promise<void>;
   autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
   handleButton?: (interaction: ButtonInteraction) => Promise<void>;
-  handleSelect?: (interaction: StringSelectMenuInteraction) => Promise<void>;
+  handleSelect?: (interaction: any) => Promise<void>;
   handleModal?: (interaction: ModalSubmitInteraction) => Promise<void>;
 }
 

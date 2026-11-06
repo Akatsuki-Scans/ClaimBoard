@@ -110,6 +110,18 @@ export async function setupSapphireBot() {
     await commandRouter.handleMessage(message);
   });
 
+  // Handle channel deletions (cleanup honeypot trap and log channels)
+  client.on('channelDelete', async (channel) => {
+    const { handleChannelDelete } = await import('./modules/honeypot');
+    await handleChannelDelete(channel as any);
+  });
+
+  // Handle guild deletions / bot removed from guild
+  client.on('guildDelete', async (guild) => {
+    const { handleGuildDelete } = await import('./modules/honeypot');
+    await handleGuildDelete(guild);
+  });
+
   // 4. Connect to Discord Gateway
   const token = process.env.DISCORD_BOT_TOKEN || BOT_TOKEN;
   if (!token || token === 'mock_discord_bot_token') {
