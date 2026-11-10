@@ -48,11 +48,19 @@ export async function chapterRoutes(fastify: FastifyInstance) {
       });
     }
 
-    const { mangaId, chapterNumber, volumeNumber, title, releaseDate, priority, notes, templateId } = parse.data;
+    const { mangaId, chapterNumber, volumeNumber, title, releaseDate, deadline, priority, notes, templateId } = parse.data;
 
     const manga = await MangaModel.findOne({ _id: mangaId, organizationId: context.organizationId });
     if (!manga) {
       return reply.status(404).send({ success: false, error: { code: API_ERROR_CODES.MANGA_NOT_FOUND, message: 'Manga not found' } });
+    }
+
+    const parsedDeadline = deadline ? new Date(deadline) : undefined;
+    if (parsedDeadline && isNaN(parsedDeadline.getTime())) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: API_ERROR_CODES.DEADLINE_INVALID, message: 'Invalid deadline date' },
+      });
     }
 
     const chapter = await ChapterModel.create({
@@ -62,6 +70,7 @@ export async function chapterRoutes(fastify: FastifyInstance) {
       volumeNumber,
       title,
       releaseDate: releaseDate ? new Date(releaseDate) : undefined,
+      deadline: parsedDeadline,
       priority,
       notes,
       status: 'In_Production',
@@ -71,6 +80,7 @@ export async function chapterRoutes(fastify: FastifyInstance) {
 
     // If template was selected, apply template to automatically create work assignments
     const selectedTemplateId = templateId || manga.defaultTemplateId;
+    let assignedViaTemplate = false;
     if (selectedTemplateId) {
       const template = await WorkTemplateModel.findOne({ _id: selectedTemplateId, organizationId: context.organizationId });
       if (template && template.steps && template.steps.length > 0) {
@@ -81,20 +91,25 @@ export async function chapterRoutes(fastify: FastifyInstance) {
           chapterId: chapter._id.toString(),
           workTypeIds,
           priority: priority as any,
+          deadline: parsedDeadline,
           dependsOnPreviousInOrder: true,
           actorId: context.user.id,
           actorName: context.user.displayName,
         });
+        assignedViaTemplate = true;
       }
+    }
+
+    if (!assignedViaTemplate) {
       // Auto-assign standard work types so chapter immediately appears in production pipeline
-      let defaultWorkTypes = await WorkTypeModel.find({ organizationId: context.organizationId }).sort({ order: 1 }).lean();
+      let defaultWorkTypes = await WorkTypeModel.find({ organizationId: context.organizationId }).sort({ sortOrder: 1 }).lean();
       if (defaultWorkTypes.length === 0) {
         const defaults = [
-          { name: 'Translation', code: 'TL', color: '#38bdf8', order: 1 },
-          { name: 'Cleaning', code: 'CL', color: '#a855f7', order: 2 },
-          { name: 'Redrawing', code: 'RD', color: '#ec4899', order: 3 },
-          { name: 'Typesetting', code: 'TS', color: '#f59e0b', order: 4 },
-          { name: 'Quality Check', code: 'QC', color: '#10b981', order: 5 },
+          { name: 'Translation', code: 'TL', color: '#38bdf8', sortOrder: 1 },
+          { name: 'Cleaning', code: 'CL', color: '#a855f7', sortOrder: 2 },
+          { name: 'Redrawing', code: 'RD', color: '#ec4899', sortOrder: 3 },
+          { name: 'Typesetting', code: 'TS', color: '#f59e0b', sortOrder: 4 },
+          { name: 'Quality Check', code: 'QC', color: '#10b981', sortOrder: 5 },
         ];
         defaultWorkTypes = (await Promise.all(
           defaults.map((d) =>
@@ -116,6 +131,7 @@ export async function chapterRoutes(fastify: FastifyInstance) {
           chapterId: chapter._id.toString(),
           workTypeIds: defaultWorkTypes.map((wt: any) => wt._id.toString()),
           priority: priority as any,
+          deadline: parsedDeadline,
           dependsOnPreviousInOrder: true,
           actorId: context.user.id,
           actorName: context.user.displayName,
@@ -241,6 +257,8 @@ export async function chapterRoutes(fastify: FastifyInstance) {
           chapterNumber: chapter.chapterNumber,
           title: chapter.title,
           status: chapter.status,
+          deadline: chapter.deadline,
+          releaseDate: chapter.releaseDate,
         },
         assignments: assignments.map((a) => ({
           id: a._id.toString(),
@@ -278,5 +296,36 @@ export async function chapterRoutes(fastify: FastifyInstance) {
         })),
       },
     });
+  });
+
+  // Update Chapter Target Deadline
+  fastify.patch('/:id/deadline', async (request, reply) => {
+    const context = await request.requirePermission('assignments.edit');
+    const { id } = request.params as any;
+    const { deadline } = (request.body as any) || {};
+
+    const parsedDate = deadline ? new Date(deadline) : null;
+    if (parsedDate && isNaN(parsedDate.getTime())) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: API_ERROR_CODES.DEADLINE_INVALID, message: 'Invalid deadline date format' },
+      });
+    }
+
+    try {
+      const updated = await ProductionService.updateChapterDeadline({
+        organizationId: context.organizationId,
+        chapterId: id,
+        deadline: parsedDate,
+        actorId: context.user.id,
+        actorName: context.user.displayName,
+      });
+      return reply.send({ success: true, data: updated });
+    } catch (err: any) {
+      return reply.status(err.code === API_ERROR_CODES.CHAPTER_NOT_FOUND ? 404 : 400).send({
+        success: false,
+        error: { code: err.code || API_ERROR_CODES.INTERNAL_SERVER_ERROR, message: err.message },
+      });
+    }
   });
 }

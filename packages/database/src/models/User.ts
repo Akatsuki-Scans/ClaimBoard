@@ -20,6 +20,7 @@ export interface IUser extends Document {
   approvedBy?: string;
   approvedAt?: Date;
   mustChangePassword?: boolean;
+  timezone?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,6 +45,7 @@ const UserSchema = new Schema<IUser>(
     approvedBy: { type: String },
     approvedAt: { type: Date },
     mustChangePassword: { type: Boolean, default: false },
+    timezone: { type: String },
   },
   { timestamps: true }
 );

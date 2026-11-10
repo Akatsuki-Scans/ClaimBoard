@@ -28,6 +28,7 @@ import {
 } from '@claimboard/database';
 import { checkIsAdmin } from '../admin';
 import { BotLogger } from '../../core/botLogger';
+import { deadlineCommand, calendarCommand, parseDeadlineInput, getUserTimeZone } from './deadlines';
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -106,6 +107,12 @@ const assignCommand: BotCommand = {
           { name: 'Urgent', value: 'Urgent' },
           { name: 'Low', value: 'Low' }
         )
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName('deadline')
+        .setDescription('Target deadline (e.g. 48h, 3d, tomorrow, or 2026-11-20)')
+        .setRequired(false)
     ),
 
   autocomplete: async (interaction: AutocompleteInteraction) => {
@@ -136,6 +143,21 @@ const assignCommand: BotCommand = {
     const chapterNum = interaction.options.getString('chapter', true).trim();
     const rolesOpt = interaction.options.getString('roles');
     const priority = (interaction.options.getString('priority') as any) || 'Normal';
+    const deadlineRaw = interaction.options.getString('deadline')?.trim();
+
+    let parsedDeadline: Date | undefined = undefined;
+    if (deadlineRaw) {
+      const { timeZone } = await getUserTimeZone(interaction.user.id);
+      const d = parseDeadlineInput(deadlineRaw, timeZone);
+      if (!d) {
+        await interaction.reply({
+          content: '❌ Invalid deadline format. Examples: `48h`, `3d`, `tomorrow`, or `2026-11-20`.',
+          ephemeral: true,
+        });
+        return;
+      }
+      parsedDeadline = d;
+    }
 
     // 1. Locate Manga
     let manga = await MangaModel.findOne({
@@ -168,7 +190,11 @@ const assignCommand: BotCommand = {
         title: `Chapter ${chapterNum}`,
         status: 'In_Production',
         priority,
+        deadline: parsedDeadline,
       });
+    } else if (parsedDeadline) {
+      chapter.deadline = parsedDeadline;
+      await chapter.save();
     }
 
     // 3. Work types setup
@@ -194,6 +220,7 @@ const assignCommand: BotCommand = {
       });
 
       if (!a) {
+        const defaultDue = new Date(Date.now() + (wt.defaultDeadlineHours || 48) * 3600 * 1000);
         a = await WorkAssignmentModel.create({
           organizationId: manga.organizationId,
           mangaId: manga._id,
@@ -201,6 +228,7 @@ const assignCommand: BotCommand = {
           workTypeId: wt._id,
           status: 'OPEN',
           priority,
+          deadline: parsedDeadline || defaultDue,
           isBlocked: false,
         });
       }
@@ -211,6 +239,7 @@ const assignCommand: BotCommand = {
 
     // 5. Construct Single Message Embed & Buttons
     const roleTagContent = manga.discordRoleId ? `🔔 <@&${manga.discordRoleId}>` : '';
+    const chapterDeadline = parsedDeadline || chapter.deadline;
 
     const embed = new EmbedBuilder()
       .setColor(priority === 'Urgent' ? 0xef4444 : priority === 'High' ? 0xf59e0b : 0x6366f1)
@@ -221,9 +250,12 @@ const assignCommand: BotCommand = {
       .addFields(
         assignments.map(({ assignment, workType }) => {
           const isClaimed = assignment.status !== 'OPEN' && assignment.assignedWorkerId;
+          const dueStr = assignment.deadline
+            ? ` • Due <t:${Math.floor(new Date(assignment.deadline).getTime() / 1000)}:R>`
+            : '';
           const statusText = isClaimed
-            ? `✅ Claimed by <@${assignment.assignedWorkerId}>`
-            : `⏳ **Open**`;
+            ? `✅ Claimed by **${assignment.assignedWorkerName || 'Worker'}**`
+            : `⏳ **Open**${dueStr}`;
           return {
             name: `${workType.name} (${workType.code})`,
             value: statusText,
@@ -233,6 +265,15 @@ const assignCommand: BotCommand = {
       )
       .addFields(
         { name: 'Priority', value: `\`${priority}\``, inline: true },
+        {
+          name: 'Deadline',
+          value: chapterDeadline
+            ? `<t:${Math.floor(new Date(chapterDeadline).getTime() / 1000)}:d> (<t:${Math.floor(
+                new Date(chapterDeadline).getTime() / 1000
+              )}:R>)`
+            : 'Per stage default',
+          inline: true,
+        },
         { name: 'Dashboard', value: `[Open in ClaimBoard](${webUrl}/board?mangaId=${manga._id})`, inline: true }
       )
       .setFooter({ text: 'ClaimBoard • Click a button below to claim a role' })
@@ -421,9 +462,12 @@ const assignCommand: BotCommand = {
       components: updatedActionRows,
     });
 
-    // 2. Send Private / Ephemeral Confirmation Message to the user
-    const deadlineStr = claimResult.claim?.deadline
-      ? new Date(claimResult.claim.deadline).toLocaleString()
+    // 2. Send Private / Ephemeral Confirmation Message to the user (uses Discord native local timezone timestamps)
+    const deadlineUnix = claimResult.claim?.deadline
+      ? Math.floor(new Date(claimResult.claim.deadline).getTime() / 1000)
+      : null;
+    const deadlineStr = deadlineUnix
+      ? `<t:${deadlineUnix}:f> (<t:${deadlineUnix}:R>)`
       : '48 hours from claim';
 
     const privateEmbed = new EmbedBuilder()
@@ -635,24 +679,19 @@ const claimCommand: BotCommand = {
       .setDescription(`**${user.username}** claimed **${manga.title}** — **${workType.name}**`)
       .addFields(
         { name: 'Claim ID', value: `\`${result.claim._id}\``, inline: true },
-        { name: 'Deadline', value: new Date(result.claim.deadline).toLocaleString(), inline: true },
+        {
+          name: 'Deadline',
+          value: result.claim?.deadline
+            ? `<t:${Math.floor(new Date(result.claim.deadline).getTime() / 1000)}:f> (<t:${Math.floor(
+                new Date(result.claim.deadline).getTime() / 1000
+              )}:R>)`
+            : 'No deadline',
+          inline: true,
+        },
         { name: 'Workspace', value: `[Submit Deliverable](${webUrl}/my-claims)`, inline: true }
       );
 
     await interaction.reply({ embeds: [embed] });
-
-    const chapter = await ChapterModel.findById(assignment.chapterId);
-    await BotLogger.taskClaimed({
-      client: interaction.client,
-      guildId: interaction.guildId,
-      mangaTitle: manga.title,
-      chapterNumber: chapter?.chapterNumber || 'Latest',
-      workTypeName: workType.name,
-      workTypeCode: workType.code,
-      workerName: user.username,
-      workerId: user.id,
-      deadline: result.claim?.deadline,
-    });
   },
 };
 
@@ -696,15 +735,6 @@ const unclaimCommand: BotCommand = {
     await interaction.reply({
       content: `Claim \`${taskId}\` has been successfully released and placed back in open work.`,
     });
-
-    await BotLogger.taskUnclaimed({
-      client: interaction.client,
-      guildId: interaction.guildId,
-      mangaTitle: 'Assignment',
-      workTypeName: taskId,
-      workerName: user.username,
-      reason,
-    });
   },
 };
 
@@ -719,19 +749,51 @@ const myclaimsCommand: BotCommand = {
   execute: async ({ interaction, webUrl }: CommandContext) => {
     const user = interaction.user;
     const dbUser = await UserModel.findOne({ discordId: user.id });
-    const claims = dbUser
-      ? await ClaimModel.find({ workerId: dbUser._id, status: 'ACTIVE' }).limit(5)
+    const claims: any[] = dbUser
+      ? await ClaimModel.find({
+          workerId: dbUser._id,
+          status: { $in: ['ACTIVE', 'CHANGES_REQUESTED', 'SUBMITTED'] },
+        })
+          .populate({
+            path: 'assignmentId',
+            populate: [
+              { path: 'mangaId', select: 'title' },
+              { path: 'chapterId', select: 'chapterNumber' },
+              { path: 'workTypeId', select: 'name code' },
+            ],
+          })
+          .sort({ deadline: 1 })
+          .limit(10)
+          .lean()
       : [];
 
+    const now = Date.now();
     const embed = new EmbedBuilder()
       .setColor(0x0ea5e9)
       .setTitle(`Your Active Production Claims (${claims.length})`)
       .setDescription(
         claims.length === 0
-          ? 'You have no active claims currently. Browse open tasks using `/board` or check the Open Work board!'
-          : claims.map((c) => `• Task ID: \`${c.assignmentId}\` — Claimed: ${new Date(c.claimedAt).toLocaleDateString()}`).join('\n')
+          ? 'You have no active claims currently. Browse open tasks using `/board` or `/calendar`!'
+          : claims
+              .map((c) => {
+                const a = c.assignmentId;
+                const label = a
+                  ? `**${a.mangaId?.title || 'Series'} Ch. ${a.chapterId?.chapterNumber || '?'}** (${a.workTypeId?.name || 'Task'})`
+                  : `Task \`${c.assignmentId}\``;
+                const due = c.deadline || a?.deadline;
+                const dueUnix = due ? Math.floor(new Date(due).getTime() / 1000) : null;
+                const isOverdue = due && new Date(due).getTime() < now && c.status !== 'COMPLETED';
+                const duePart = dueUnix
+                  ? `${isOverdue ? '🔴 Overdue ' : '⏰ Due '}<t:${dueUnix}:R> (<t:${dueUnix}:d>)`
+                  : 'No deadline';
+                return `• ${label} — \`${c.status}\` • ${duePart}`;
+              })
+              .join('\n')
       )
-      .addFields({ name: 'Web Access', value: `[Open My Claims in Browser](${webUrl}/my-claims)` })
+      .addFields(
+        { name: 'My Claims', value: `[Open My Claims](${webUrl}/my-claims)`, inline: true },
+        { name: 'Schedule', value: `[Deadline Calendar](${webUrl}/calendar)`, inline: true }
+      )
       .setFooter({ text: 'ClaimBoard • Scanlation Management System' });
 
     await interaction.reply({ embeds: [embed], ephemeral: true });
@@ -824,7 +886,7 @@ const progressCommand: BotCommand = {
     const embed = new EmbedBuilder()
       .setColor(0x6366f1)
       .setTitle(`Production Pipeline: ${manga?.title || 'Scanlation'}`)
-      .setDescription('Raw ➔ Translation ➔ Cleaning ➔ Redrawing ➔ Typesetting ➔ QC ➔ Upload')
+      .setDescription('Translation ➔ Proofreading ➔ Cleaning ➔ Redrawing ➔ Typesetting ➔ Quality Check')
       .addFields({ name: 'Live Web Stepper', value: `[Open Realtime Pipeline View](${webUrl}/pipeline)` });
 
     await interaction.reply({ embeds: [embed] });
@@ -1345,21 +1407,6 @@ async function processTaskSubmission(params: {
     await assignment.save();
   }
 
-  // Audit log to bot log channels
-  await BotLogger.taskSubmitted({
-    client,
-    guildId: interaction.guildId,
-    mangaTitle: manga.title,
-    chapterNumber: chapter.chapterNumber,
-    workTypeName: workType.name,
-    workTypeCode: workType.code,
-    workerName: user.displayName || interaction.user.username,
-    workerId: interaction.user.id,
-    deliverableUrl,
-    notes,
-    revision: revisionNum,
-  });
-
   // Dispatch DM to Admins with Interactive Approve & Request Changes buttons
   try {
     const adminUsers = await UserModel.find({
@@ -1590,33 +1637,6 @@ async function notifyClaimerAndEditSubmissionMessage(params: {
     } catch (dmErr: any) {
       console.warn('[NotifyClaimer] Could not send DM notification to claimer:', dmErr?.message);
     }
-  }
-
-  // Audit log to bot log channels
-  if (isApprove) {
-    await BotLogger.taskApproved({
-      client,
-      guildId: null,
-      mangaTitle: manga?.title || 'Series',
-      chapterNumber: chapter?.chapterNumber || '',
-      workTypeName: workType?.name || 'Task',
-      workerName: assignment.assignedWorkerName || 'Worker',
-      reviewerName,
-      reviewerId,
-      comment,
-    });
-  } else {
-    await BotLogger.taskChangesRequested({
-      client,
-      guildId: null,
-      mangaTitle: manga?.title || 'Series',
-      chapterNumber: chapter?.chapterNumber || '',
-      workTypeName: workType?.name || 'Task',
-      workerName: assignment.assignedWorkerName || 'Worker',
-      reviewerName,
-      reviewerId,
-      comment,
-    });
   }
 }
 
@@ -2108,8 +2128,8 @@ const approveCommand: BotCommand = {
 export const claimboardModule: BotModule = {
   id: 'claimboard',
   name: 'ClaimBoard Production Module',
-  description: 'Discord-first work management, claiming, task tracking, and pipeline progression for scanlation teams',
-  version: '1.2.0',
+  description: 'Discord-first work management, claiming, task tracking, deadlines, and calendar scheduling for scanlation teams',
+  version: '1.3.0',
   enabled: true,
   commands: [
     assignCommand,
@@ -2122,8 +2142,10 @@ export const claimboardModule: BotModule = {
     progressCommand,
     submitCommand,
     approveCommand,
+    deadlineCommand,
+    calendarCommand,
   ],
   onLoad: () => {
-    console.log('[ClaimBoardModule] ClaimBoard production module loaded with interactive /assign, /setrole, /submit, and /approve commands.');
+    console.log('[ClaimBoardModule] ClaimBoard production module loaded with /assign, /submit, /approve, /deadline, and /calendar commands.');
   },
 };

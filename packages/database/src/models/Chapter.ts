@@ -8,6 +8,8 @@ export interface IChapter extends Document {
   volumeNumber?: string;
   title?: string;
   releaseDate?: Date;
+  deadline?: Date;
+  completedAt?: Date;
   status: string;
   notes?: string;
   sourceUrl?: string;
@@ -25,6 +27,8 @@ const ChapterSchema = new Schema<IChapter>(
     volumeNumber: { type: String },
     title: { type: String },
     releaseDate: { type: Date },
+    deadline: { type: Date, index: true },
+    completedAt: { type: Date },
     status: { type: String, enum: CHAPTER_STATUSES, default: 'Planning', index: true },
     notes: { type: String },
     sourceUrl: { type: String },

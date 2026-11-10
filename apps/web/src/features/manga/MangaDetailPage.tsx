@@ -6,6 +6,7 @@ import { searchAnilistManga, AnilistManga } from '../../lib/anilist';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Input, Textarea } from '../../components/ui/Input';
+import { DeadlineDatePicker } from '../../components/application/date-picker/DatePicker';
 import { Modal } from '../../components/ui/Modal';
 import {
   BookOpen,
@@ -19,7 +20,19 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
+  Calendar,
 } from 'lucide-react';
+import {
+  formatDeadlineCountdown,
+  formatInUserTimeZone,
+  getBrowserTimeZone,
+  getDeadlineUrgency,
+  getPresetDateTimeLocal,
+  getTimeZoneShortLabel,
+  getUrgencyStyles,
+  toDateTimeLocalValue,
+  zonedDateTimeLocalToIso,
+} from '../../lib/deadlines';
 
 export function MangaDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -31,6 +44,9 @@ export function MangaDetailPage() {
   const [chapterNumber, setChapterNumber] = useState('');
   const [chapterTitle, setChapterTitle] = useState('');
   const [chapterPriority, setChapterPriority] = useState('Normal');
+  const [chapterDeadline, setChapterDeadline] = useState('');
+  const [editingChapterDeadline, setEditingChapterDeadline] = useState<any | null>(null);
+  const [editChapterDeadlineVal, setEditChapterDeadlineVal] = useState('');
 
   // Discord Role modal
   const [isDiscordRoleModalOpen, setIsDiscordRoleModalOpen] = useState(false);
@@ -40,6 +56,12 @@ export function MangaDetailPage() {
   // AniList metadata state
   const [anilistData, setAnilistData] = useState<AnilistManga | null>(null);
   const [isFetchingAnilist, setIsFetchingAnilist] = useState(false);
+
+  const { data: tzData } = useQuery<{ timezone: string | null }>({
+    queryKey: ['deadlines', 'timezone'],
+    queryFn: () => apiRequest<{ timezone: string | null }>('/deadlines/timezone').catch(() => ({ timezone: null })),
+  });
+  const activeTimeZone = tzData?.timezone || getBrowserTimeZone();
 
   const { data: manga, isLoading: isMangaLoading } = useQuery({
     queryKey: ['manga', id],
@@ -132,15 +154,35 @@ export function MangaDetailPage() {
           chapterNumber: chapterNumber.trim(),
           title: chapterTitle.trim() || `Chapter ${chapterNumber.trim()}`,
           priority: chapterPriority,
+          deadline: chapterDeadline ? (zonedDateTimeLocalToIso(chapterDeadline, activeTimeZone) || undefined) : undefined,
         }),
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chapters', id] });
       queryClient.invalidateQueries({ queryKey: ['manga', id] });
+      queryClient.invalidateQueries({ queryKey: ['deadlines'] });
       setIsAddChapterOpen(false);
       setChapterNumber('');
       setChapterTitle('');
+      setChapterDeadline('');
+    },
+  });
+
+  const updateChapterDeadlineMutation = useMutation({
+    mutationFn: async ({ chapterId, deadline }: { chapterId: string; deadline: string | null }) => {
+      return apiRequest(`/chapters/${chapterId}/deadline`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          deadline: deadline ? zonedDateTimeLocalToIso(deadline, activeTimeZone) : null,
+        }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chapters', id] });
+      queryClient.invalidateQueries({ queryKey: ['deadlines'] });
+      queryClient.invalidateQueries({ queryKey: ['pipeline'] });
+      setEditingChapterDeadline(null);
     },
   });
 
@@ -330,7 +372,7 @@ export function MangaDetailPage() {
                 <th className="py-3 px-4">Chapter #</th>
                 <th className="py-3 px-4">Title</th>
                 <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Release Date</th>
+                <th className="py-3 px-4">Target Deadline</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -342,7 +384,10 @@ export function MangaDetailPage() {
                   </td>
                 </tr>
               ) : (
-                displayedChapters.map((ch: any) => (
+                displayedChapters.map((ch: any) => {
+                  const urgency = getDeadlineUrgency(ch.deadline, ch.status);
+                  const styles = getUrgencyStyles(urgency);
+                  return (
                   <tr key={ch.id} className="hover:bg-zinc-800/30 transition-colors">
                     <td className="py-3.5 px-4 font-mono font-semibold text-zinc-100">
                       Ch. {ch.chapterNumber}
@@ -362,7 +407,34 @@ export function MangaDetailPage() {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-zinc-400 font-mono text-[11px]">
-                      {ch.releaseDate ? new Date(ch.releaseDate).toLocaleDateString() : 'Active'}
+                      <div className="flex items-center gap-2">
+                        {ch.deadline ? (
+                          <span
+                            className={`px-2 py-0.5 rounded border text-[10px] tabular-nums inline-flex items-center gap-1.5 ${styles.badge}`}
+                            title={formatInUserTimeZone(ch.deadline, activeTimeZone, 'full')}
+                          >
+                            <span className={`h-1.5 w-1.5 rounded-full ${styles.dot}`} />
+                            <Calendar className="h-3 w-3 shrink-0 opacity-85" />
+                            {formatDeadlineCountdown(ch.deadline, ch.status, activeTimeZone)}
+                          </span>
+                        ) : (
+                          <span className="text-zinc-600">No deadline</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingChapterDeadline(ch);
+                            setEditChapterDeadlineVal(
+                              toDateTimeLocalValue(ch.deadline, activeTimeZone) ||
+                                getPresetDateTimeLocal(72, activeTimeZone)
+                            );
+                          }}
+                          className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+                          title="Set chapter deadline"
+                        >
+                          <Calendar className="h-3 w-3" />
+                        </button>
+                      </div>
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       <Link to={`/pipeline/${manga.id}/${ch.id || ch._id}`}>
@@ -372,7 +444,8 @@ export function MangaDetailPage() {
                       </Link>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -461,6 +534,38 @@ export function MangaDetailPage() {
               </select>
             </div>
 
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="flex items-center gap-1.5 text-zinc-300 font-medium">
+                  <Calendar className="h-3.5 w-3.5 text-zinc-400" />
+                  Target Deadline (Optional)
+                </label>
+                <span className="text-[10px] font-mono text-zinc-500">{getTimeZoneShortLabel(activeTimeZone)}</span>
+              </div>
+              <DeadlineDatePicker
+                timeZone={activeTimeZone}
+                showPresets={false}
+                value={chapterDeadline}
+                onChange={setChapterDeadline}
+              />
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {[
+                  { label: '+48h', hours: 48 },
+                  { label: '+3d', hours: 72 },
+                  { label: '+1w', hours: 168 },
+                ].map((p) => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => setChapterDeadline(getPresetDateTimeLocal(p.hours, activeTimeZone))}
+                    className="px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-[10px] font-mono text-zinc-300 transition-colors"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
               <Button type="button" variant="outline" size="sm" onClick={() => setIsAddChapterOpen(false)}>
                 Cancel
@@ -470,6 +575,87 @@ export function MangaDetailPage() {
               </Button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Chapter Target Deadline Edit Modal */}
+      {editingChapterDeadline && (
+        <Modal
+          isOpen={!!editingChapterDeadline}
+          onClose={() => setEditingChapterDeadline(null)}
+          title={`Target Deadline • Ch. ${editingChapterDeadline.chapterNumber}`}
+          description={`${manga.title}`}
+        >
+          <div className="space-y-4 text-xs">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="flex items-center gap-1.5 text-zinc-300 font-medium">
+                  <Calendar className="h-3.5 w-3.5 text-zinc-400" />
+                  Due Date & Time
+                </label>
+                <span className="text-[10px] font-mono text-zinc-500">{getTimeZoneShortLabel(activeTimeZone)}</span>
+              </div>
+              <DeadlineDatePicker
+                timeZone={activeTimeZone}
+                showPresets={false}
+                value={editChapterDeadlineVal}
+                onChange={setEditChapterDeadlineVal}
+              />
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {[
+                  { label: '+24h', hours: 24 },
+                  { label: '+48h', hours: 48 },
+                  { label: '+3 days', hours: 72 },
+                  { label: '+1 week', hours: 168 },
+                ].map((p) => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => setEditChapterDeadlineVal(getPresetDateTimeLocal(p.hours, activeTimeZone))}
+                    className="px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-[10px] font-mono text-zinc-300 transition-colors"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-zinc-800">
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                onClick={() =>
+                  updateChapterDeadlineMutation.mutate({
+                    chapterId: editingChapterDeadline.id || editingChapterDeadline._id,
+                    deadline: null,
+                  })
+                }
+                disabled={updateChapterDeadlineMutation.isPending}
+              >
+                Clear
+              </Button>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="secondary" size="sm" onClick={() => setEditingChapterDeadline(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  isLoading={updateChapterDeadlineMutation.isPending}
+                  onClick={() =>
+                    updateChapterDeadlineMutation.mutate({
+                      chapterId: editingChapterDeadline.id || editingChapterDeadline._id,
+                      deadline: editChapterDeadlineVal || null,
+                    })
+                  }
+                >
+                  Save Deadline
+                </Button>
+              </div>
+            </div>
+          </div>
         </Modal>
       )}
 

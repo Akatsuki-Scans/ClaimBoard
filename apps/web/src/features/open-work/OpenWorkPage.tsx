@@ -7,16 +7,23 @@ import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import {
   SearchIcon,
-  ClockIcon,
   CheckIcon,
   MangaIcon,
   FilterIcon,
+  CalendarIcon,
 } from '../../components/ui/icon';
 import {
   Lock,
   List as ListIcon,
   Kanban as KanbanIcon,
 } from 'lucide-react';
+import {
+  formatDeadlineCountdown,
+  formatInUserTimeZone,
+  getBrowserTimeZone,
+  getDeadlineUrgency,
+  getUrgencyStyles,
+} from '../../lib/deadlines';
 
 export function OpenWorkPage() {
   const queryClient = useQueryClient();
@@ -46,6 +53,12 @@ export function OpenWorkPage() {
     queryKey: ['workTypes'],
     queryFn: () => apiRequest<any[]>('/work-types').catch(() => []),
   });
+
+  const { data: tzData } = useQuery<{ timezone: string | null }>({
+    queryKey: ['deadlines', 'timezone'],
+    queryFn: () => apiRequest<{ timezone: string | null }>('/deadlines/timezone').catch(() => ({ timezone: null })),
+  });
+  const activeTimeZone = tzData?.timezone || getBrowserTimeZone();
 
   // Robust field extractors ensuring title, chapter and work type are always visible
   const getMangaTitle = (task: any): string => {
@@ -106,27 +119,37 @@ export function OpenWorkPage() {
     setClaimingAssignment(assignment);
   };
 
-  // Filter tasks based on search and filters
-  const filteredTasks = (assignments || []).filter((task) => {
-    const rawMangaId = typeof task.mangaId === 'object' ? (task.mangaId?._id || task.mangaId?.id) : task.mangaId;
-    const rawWorkTypeId = typeof task.workTypeId === 'object' ? (task.workTypeId?._id || task.workTypeId?.id) : task.workTypeId;
+  // Filter tasks based on search & filters and ensure unique (chapterId, workTypeId) slots
+  const filteredTasks = (() => {
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const task of assignments || []) {
+      const rawMangaId = typeof task.mangaId === 'object' ? (task.mangaId?._id || task.mangaId?.id) : task.mangaId;
+      const rawChapterId = typeof task.chapterId === 'object' ? (task.chapterId?._id || task.chapterId?.id) : task.chapterId;
+      const rawWorkTypeId = typeof task.workTypeId === 'object' ? (task.workTypeId?._id || task.workTypeId?.id) : task.workTypeId;
 
-    if (selectedManga !== 'All' && String(rawMangaId) !== String(selectedManga)) return false;
-    if (selectedWorkType !== 'All' && String(rawWorkTypeId) !== String(selectedWorkType)) return false;
-    if (selectedPriority !== 'All' && task.priority !== selectedPriority) return false;
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      const title = getMangaTitle(task).toLowerCase();
-      const ch = String(getChapterNumber(task));
-      if (!title.includes(q) && !ch.includes(q)) return false;
+      const slotKey = rawChapterId && rawWorkTypeId ? `${rawChapterId}:${rawWorkTypeId}` : task.id;
+      if (seen.has(slotKey)) continue;
+      seen.add(slotKey);
+
+      if (selectedManga !== 'All' && String(rawMangaId) !== String(selectedManga)) continue;
+      if (selectedWorkType !== 'All' && String(rawWorkTypeId) !== String(selectedWorkType)) continue;
+      if (selectedPriority !== 'All' && task.priority !== selectedPriority) continue;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const title = getMangaTitle(task).toLowerCase();
+        const ch = String(getChapterNumber(task));
+        if (!title.includes(q) && !ch.includes(q)) continue;
+      }
+      out.push(task);
     }
-    return true;
-  });
+    return out;
+  })();
 
-  // Group tasks into 4 Kanban columns
+  // Group tasks into 4 mutually exclusive Kanban columns
   const openTasks = filteredTasks.filter((t) => t.status === 'OPEN' && !t.isBlocked);
-  const claimedTasks = filteredTasks.filter((t) => t.status === 'CLAIMED' || t.status === 'ACTIVE');
-  const inProgressTasks = filteredTasks.filter((t) => t.status === 'IN_PROGRESS' || t.status === 'SUBMITTED');
+  const claimedTasks = filteredTasks.filter((t) => !t.isBlocked && (t.status === 'CLAIMED' || t.status === 'ACTIVE'));
+  const inProgressTasks = filteredTasks.filter((t) => !t.isBlocked && (t.status === 'IN_PROGRESS' || t.status === 'SUBMITTED'));
   const blockedTasks = filteredTasks.filter((t) => t.isBlocked);
 
   return (
@@ -276,10 +299,19 @@ export function OpenWorkPage() {
                       <span className="font-mono text-zinc-300 text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700/60">
                         {getWorkTypeName(card)}
                       </span>
-                      <span className="text-zinc-500 text-[10px] font-mono flex items-center gap-1">
-                        <ClockIcon className="h-3 w-3" />
-                        {card.deadline ? new Date(card.deadline).toLocaleDateString() : 'No deadline'}
-                      </span>
+                      {(() => {
+                        const urgency = getDeadlineUrgency(card.deadline, card.status);
+                        const styles = getUrgencyStyles(urgency);
+                        return (
+                          <span
+                            className={`text-[10px] font-mono tabular-nums flex items-center gap-1 ${card.deadline ? styles.text : 'text-zinc-500'}`}
+                            title={card.deadline ? formatInUserTimeZone(card.deadline, activeTimeZone, 'full') : undefined}
+                          >
+                            <CalendarIcon className="h-3 w-3 shrink-0 opacity-85" />
+                            {formatDeadlineCountdown(card.deadline, card.status, activeTimeZone)}
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     <Button
@@ -456,6 +488,15 @@ export function OpenWorkPage() {
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0">
+                  {card.deadline && (
+                    <span
+                      className={`text-[10px] font-mono tabular-nums inline-flex items-center gap-1 ${getUrgencyStyles(getDeadlineUrgency(card.deadline, card.status)).text}`}
+                      title={formatInUserTimeZone(card.deadline, activeTimeZone, 'full')}
+                    >
+                      <CalendarIcon className="h-3 w-3 shrink-0 opacity-85" />
+                      {formatDeadlineCountdown(card.deadline, card.status, activeTimeZone)}
+                    </span>
+                  )}
                   <Badge variant={card.priority === 'High' ? 'danger' : 'outline'}>
                     {card.priority || 'Normal'}
                   </Badge>

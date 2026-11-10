@@ -5,6 +5,8 @@ import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
 import { CommandPalette } from '../ui/CommandPalette';
 import { useAuthStore } from '../../stores/authStore';
+import { apiRequest } from '../../lib/api';
+import { getBrowserTimeZone } from '../../lib/deadlines';
 import { Loader2 } from 'lucide-react';
 
 export function AppLayout() {
@@ -18,6 +20,26 @@ export function AppLayout() {
     }
     fetchMe();
   }, [fetchMe]);
+
+  // Auto-sync the user's browser timezone once per session if not configured yet
+  useEffect(() => {
+    if (!user) return;
+    if (typeof window === 'undefined') return;
+    if (sessionStorage.getItem('cb_tz_synced')) return;
+    sessionStorage.setItem('cb_tz_synced', '1');
+
+    const browserTz = getBrowserTimeZone();
+    apiRequest<{ timezone: string | null }>('/deadlines/timezone')
+      .then((res) => {
+        if (!res?.timezone && browserTz) {
+          return apiRequest('/deadlines/timezone', {
+            method: 'PATCH',
+            body: JSON.stringify({ timezone: browserTz }),
+          });
+        }
+      })
+      .catch(() => null);
+  }, [user]);
 
   if (isLoading) {
     return (

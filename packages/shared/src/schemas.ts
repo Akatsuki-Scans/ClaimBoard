@@ -43,12 +43,23 @@ export const CreateChapterSchema = z.object({
   volumeNumber: z.string().optional(),
   title: z.string().optional(),
   releaseDate: z.string().optional(),
+  deadline: z.string().optional().nullable(),
   status: z.enum(CHAPTER_STATUSES).default('Planning'),
   notes: z.string().optional(),
   sourceUrl: z.string().url().optional().or(z.literal('')),
   coverUrl: z.string().url().optional().or(z.literal('')),
   priority: z.enum(PRIORITY_LEVELS).default('Normal'),
   templateId: z.string().optional(), // optionally apply template immediately
+});
+
+export const UpdateDeadlineSchema = z.object({
+  deadline: z.string().nullable().optional(),
+});
+
+export const BatchUpdateDeadlinesSchema = z.object({
+  kind: z.enum(['assignment', 'chapter']),
+  ids: z.array(z.string().min(1)).min(1),
+  deadline: z.string().nullable().optional(),
 });
 
 export const BulkCreateChaptersSchema = z.object({
@@ -58,17 +69,24 @@ export const BulkCreateChaptersSchema = z.object({
   priority: z.enum(PRIORITY_LEVELS).default('Normal'),
   templateId: z.string().optional(),
   defaultDeadlineHours: z.number().default(48),
+  deadline: z.string().optional().nullable(),
 });
 
-export const CreateAssignmentSchema = z.object({
-  mangaId: z.string().min(1),
-  chapterId: z.string().min(1),
-  workTypeId: z.string().min(1),
-  priority: z.enum(PRIORITY_LEVELS).default('Normal'),
-  deadline: z.string().optional(),
-  dependsOnAssignmentIds: z.array(z.string()).default([]),
-  assignedWorkerId: z.string().optional(),
-});
+export const CreateAssignmentSchema = z
+  .object({
+    mangaId: z.string().min(1),
+    chapterId: z.string().min(1),
+    workTypeId: z.string().min(1).optional(),
+    workTypeIds: z.array(z.string().min(1)).optional(),
+    priority: z.enum(PRIORITY_LEVELS).default('Normal'),
+    deadline: z.string().optional().nullable(),
+    dependsOnAssignmentIds: z.array(z.string()).default([]),
+    assignedWorkerId: z.string().optional(),
+  })
+  .refine((data) => Boolean(data.workTypeId) || (Array.isArray(data.workTypeIds) && data.workTypeIds.length > 0), {
+    message: 'At least one work type / role is required',
+    path: ['workTypeIds'],
+  });
 
 export const ApplyTemplateSchema = z.object({
   chapterId: z.string().min(1),

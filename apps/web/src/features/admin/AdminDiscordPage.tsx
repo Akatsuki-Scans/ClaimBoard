@@ -5,7 +5,7 @@ import { AdminNavTabs } from '../../components/admin/AdminNavTabs';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Input, Textarea } from '../../components/ui/Input';
-import { HashIcon, TeamIcon, PlusIcon, DiscordIcon } from '../../components/ui/icon';
+import { HashIcon, TeamIcon, PlusIcon, DiscordIcon, ActivityIcon } from '../../components/ui/icon';
 import { Eye, Trash2 } from 'lucide-react';
 
 export function AdminDiscordPage() {
@@ -20,6 +20,10 @@ export function AdminDiscordPage() {
   const [selectedWorkTypeId, setSelectedWorkTypeId] = useState('');
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleId, setNewRoleId] = useState('');
+
+  // New Log Channel State
+  const [newLogChannelId, setNewLogChannelId] = useState('');
+  const [newLogChannelName, setNewLogChannelName] = useState('');
 
   // Announcement Builder State
   const [embedTitle, setEmbedTitle] = useState('New chapter announced: One Piece — Ch. 1150');
@@ -45,6 +49,37 @@ export function AdminDiscordPage() {
   const { data: workTypes } = useQuery({
     queryKey: ['work-types'],
     queryFn: () => apiRequest<any[]>('/work-types'),
+  });
+
+  const { data: logChannels, isLoading: isLogChannelsLoading } = useQuery({
+    queryKey: ['discord', 'log-channels'],
+    queryFn: () => apiRequest<any[]>('/discord/log-channels').catch(() => []),
+  });
+
+  const addLogChannelMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('/discord/log-channels', {
+        method: 'POST',
+        body: JSON.stringify({
+          channelId: newLogChannelId,
+          channelName: newLogChannelName,
+        }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['discord', 'log-channels'] });
+      setNewLogChannelId('');
+      setNewLogChannelName('');
+    },
+  });
+
+  const deleteLogChannelMutation = useMutation({
+    mutationFn: async (logId: string) => {
+      return apiRequest(`/discord/log-channels/${logId}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['discord', 'log-channels'] });
+    },
   });
 
   // Save Channel Mapping Mutation
@@ -392,6 +427,98 @@ export function AdminDiscordPage() {
                 </div>
               </div>
             </div>
+          </div>
+          {/* Log Channels Section */}
+          <div className="rounded-xl border border-zinc-800 bg-[#111215] p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-semibold text-zinc-200 flex items-center gap-2">
+                  <ActivityIcon className="h-3.5 w-3.5 text-emerald-400" />
+                  Bot activity & completion log channels
+                </h3>
+                <p className="text-[11px] text-zinc-500 mt-0.5">
+                  Streams completed chapters, completed tasks (e.g. Translation by member), claims, and deadlines
+                </p>
+              </div>
+              <Badge variant="outline">
+                {logChannels?.length || 0} active
+              </Badge>
+            </div>
+
+            {isLogChannelsLoading ? (
+              <div className="p-6 text-center text-xs text-zinc-500 font-mono">Loading log channels...</div>
+            ) : !logChannels || logChannels.length === 0 ? (
+              <div className="p-5 text-center text-xs text-zinc-500 border border-dashed border-zinc-800 rounded-lg space-y-1">
+                <div>No log channels configured yet.</div>
+                <div className="text-[11px] text-zinc-400 font-mono">
+                  Run /add-log-channel in Discord or register a Channel ID below.
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2 divide-y divide-zinc-800/80">
+                {logChannels.map((lc: any) => (
+                  <div key={lc.id} className="pt-2.5 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
+                      <span className="font-mono text-zinc-200 bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700/60 text-[11px] truncate">
+                        #{lc.channelName}
+                      </span>
+                      {lc.addedByName && (
+                        <span className="text-[10px] text-zinc-500 truncate">added by {lc.addedByName}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-mono text-[10px] text-zinc-500">ID: {lc.channelId}</span>
+                      <button
+                        type="button"
+                        onClick={() => deleteLogChannelMutation.mutate(lc.id)}
+                        className="text-zinc-500 hover:text-rose-400 p-1 rounded hover:bg-rose-500/10 transition-colors"
+                        title="Remove log channel"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                addLogChannelMutation.mutate();
+              }}
+              className="pt-3 border-t border-zinc-800 space-y-2.5 text-xs"
+            >
+              <div className="text-[11px] font-medium text-zinc-300">
+                Add log channel manually (or run <code className="text-zinc-200 bg-zinc-800 px-1 rounded">/add-log-channel</code> / <code className="text-zinc-200 bg-zinc-800 px-1 rounded">/remove-log-channel</code> in Discord)
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  type="text"
+                  placeholder="Channel ID (e.g. 1293847561)"
+                  value={newLogChannelId}
+                  onChange={(e) => setNewLogChannelId(e.target.value)}
+                  required
+                />
+                <Input
+                  type="text"
+                  placeholder="Channel label (e.g. claimboard-logs)"
+                  value={newLogChannelName}
+                  onChange={(e) => setNewLogChannelName(e.target.value)}
+                />
+              </div>
+              <Button
+                type="submit"
+                size="sm"
+                variant="secondary"
+                className="w-full h-8 gap-1.5"
+                isLoading={addLogChannelMutation.isPending}
+              >
+                <PlusIcon className="h-3.5 w-3.5" />
+                Add Log Channel
+              </Button>
+            </form>
           </div>
         </div>
       </div>

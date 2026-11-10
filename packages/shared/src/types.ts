@@ -121,7 +121,7 @@ export interface WorkType {
   id: string;
   organizationId: string;
   name: string;
-  code: string; // e.g. RAW, TL, PR, CL, RD, TS, QC, UP
+  code: string; // e.g. RAW, TL, PR, CL, RD, TS, QC
   description?: string;
   icon?: string;
   color: string;

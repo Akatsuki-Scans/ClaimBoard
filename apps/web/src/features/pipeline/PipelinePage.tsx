@@ -5,6 +5,7 @@ import { apiRequest } from '../../lib/api';
 import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input, Textarea } from '../../components/ui/Input';
+import { DeadlineDatePicker } from '../../components/application/date-picker/DatePicker';
 import {
   GitBranch,
   Layers,
@@ -30,7 +31,19 @@ import {
   Search,
   BookOpen,
   ArrowRight,
+  Calendar,
 } from 'lucide-react';
+import {
+  formatDeadlineCountdown,
+  formatInUserTimeZone,
+  getBrowserTimeZone,
+  getDeadlineUrgency,
+  getPresetDateTimeLocal,
+  getTimeZoneShortLabel,
+  getUrgencyStyles,
+  toDateTimeLocalValue,
+  zonedDateTimeLocalToIso,
+} from '../../lib/deadlines';
 
 interface StageDeliverable {
   id?: string;
@@ -72,6 +85,8 @@ interface ChapterPipeline {
   mangaCoverUrl?: string;
   priority: string;
   status: string;
+  deadline?: string;
+  releaseDate?: string;
   stages: PipelineStage[];
 }
 
@@ -138,6 +153,7 @@ export function PipelinePage() {
 
   // Inspector & Submission Modal states
   const [inspectedStage, setInspectedStage] = useState<PipelineStage | null>(null);
+  const [stageDeadlineInput, setStageDeadlineInput] = useState('');
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [submissionUrl, setSubmissionUrl] = useState('');
   const [submissionLabel, setSubmissionLabel] = useState('');
@@ -150,6 +166,20 @@ export function PipelinePage() {
     queryKey: ['manga'],
     queryFn: () => apiRequest<any[]>('/manga').catch(() => []),
   });
+
+  // User timezone preference
+  const { data: tzData } = useQuery<{ timezone: string | null }>({
+    queryKey: ['deadlines', 'timezone'],
+    queryFn: () => apiRequest<{ timezone: string | null }>('/deadlines/timezone').catch(() => ({ timezone: null })),
+  });
+  const activeTimeZone = tzData?.timezone || getBrowserTimeZone();
+
+  const openInspector = (stage: PipelineStage) => {
+    setInspectedStage(stage);
+    setStageDeadlineInput(
+      toDateTimeLocalValue(stage.deadline, activeTimeZone) || getPresetDateTimeLocal(48, activeTimeZone)
+    );
+  };
 
   // Live Pipeline query
   const { data: pipelineData, isLoading, refetch, isFetching } = useQuery<ChapterPipeline[]>({
@@ -209,6 +239,26 @@ export function PipelinePage() {
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
       if (inspectedStage) {
         setInspectedStage((prev) => (prev ? { ...prev, status: draggedStageId ? prev.status : prev.status } : null));
+      }
+    },
+  });
+
+  // Update Assignment Deadline Mutation
+  const updateStageDeadlineMutation = useMutation({
+    mutationFn: async ({ assignmentId, deadline }: { assignmentId: string; deadline: string | null }) => {
+      return apiRequest(`/assignments/${assignmentId}/deadline`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          deadline: deadline ? zonedDateTimeLocalToIso(deadline, activeTimeZone) : null,
+        }),
+      });
+    },
+    onSuccess: (data: any, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['pipeline'] });
+      queryClient.invalidateQueries({ queryKey: ['deadlines'] });
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      if (inspectedStage && inspectedStage.assignmentId === variables.assignmentId) {
+        setInspectedStage((prev) => (prev ? { ...prev, deadline: data?.deadline || undefined } : null));
       }
     },
   });
@@ -439,7 +489,7 @@ export function PipelinePage() {
                 <h2 className="text-lg font-bold text-white mt-0.5">
                   Chapter {activeChapter.chapterNumber}
                 </h2>
-                <div className="flex items-center gap-3 mt-1 text-xs text-zinc-400">
+                <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-zinc-400">
                   <span>
                     Status: <strong className="text-white font-medium">{activeChapter.status}</strong>
                   </span>
@@ -447,6 +497,18 @@ export function PipelinePage() {
                   <span>
                     Completed: <strong className="text-white font-mono">{completedStagesCount}</strong> / {stages.length} stages
                   </span>
+                  {activeChapter.deadline && (
+                    <>
+                      <span className="text-zinc-600">•</span>
+                      <span
+                        className={`font-mono text-[11px] flex items-center gap-1 ${getUrgencyStyles(getDeadlineUrgency(activeChapter.deadline, activeChapter.status)).text}`}
+                        title={formatInUserTimeZone(activeChapter.deadline, activeTimeZone, 'full')}
+                      >
+                        <Calendar className="h-3 w-3" />
+                        Target: {formatDeadlineCountdown(activeChapter.deadline, activeChapter.status, activeTimeZone)}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -526,7 +588,7 @@ export function PipelinePage() {
                             key={stage.assignmentId}
                             draggable={true}
                             onDragStart={(e) => handleDragStart(e, stage.assignmentId)}
-                            onClick={() => setInspectedStage(stage)}
+                            onClick={() => openInspector(stage)}
                             className={`group relative rounded-xl border p-4 bg-[#14171d] hover:bg-[#181b22] transition-all duration-150 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-xl ${
                               isBeingDragged
                                 ? 'opacity-40 border-dashed border-white/60 scale-95'
@@ -583,10 +645,24 @@ export function PipelinePage() {
 
                             {/* Deadline if present */}
                             {stage.deadline && (
-                              <div className="mt-2 text-[11px] text-zinc-500 flex items-center gap-1 font-mono">
-                                <Clock className="h-3 w-3 text-zinc-500" />
-                                <span>Due: {new Date(stage.deadline).toLocaleDateString()}</span>
-                              </div>
+                              (() => {
+                                const urgency = getDeadlineUrgency(stage.deadline, stage.status);
+                                const styles = getUrgencyStyles(urgency);
+                                return (
+                                  <div
+                                    className={`mt-2 text-[11px] flex items-center justify-between font-mono ${styles.text}`}
+                                    title={formatInUserTimeZone(stage.deadline, activeTimeZone, 'full')}
+                                  >
+                                    <span className="flex items-center gap-1">
+                                      <Calendar className="h-3 w-3 shrink-0" />
+                                      <span>{formatDeadlineCountdown(stage.deadline, stage.status, activeTimeZone)}</span>
+                                    </span>
+                                    <span className="text-[10px] text-zinc-500">
+                                      {formatInUserTimeZone(stage.deadline, activeTimeZone, 'dateOnly')}
+                                    </span>
+                                  </div>
+                                );
+                              })()
                             )}
 
                             {/* MILANOTE SUBMISSION PREVIEW BLOCK */}
@@ -636,7 +712,7 @@ export function PipelinePage() {
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setInspectedStage(stage);
+                                      openInspector(stage);
                                     }}
                                     className="w-full flex items-center justify-center gap-1 text-[11px] font-medium py-1 px-2 rounded-md bg-zinc-800 text-zinc-200 hover:bg-zinc-700 border border-zinc-700 transition-colors"
                                   >
@@ -651,7 +727,7 @@ export function PipelinePage() {
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setInspectedStage(stage);
+                                      openInspector(stage);
                                       setIsSubmitModalOpen(true);
                                     }}
                                     className="text-zinc-300 hover:text-white hover:underline flex items-center gap-0.5 text-[10px]"
@@ -709,7 +785,7 @@ export function PipelinePage() {
                   return (
                     <React.Fragment key={stage.assignmentId || idx}>
                       <div
-                        onClick={() => setInspectedStage(stage)}
+                        onClick={() => openInspector(stage)}
                         className="flex flex-col items-center group z-10 cursor-pointer"
                       >
                         <div
@@ -749,7 +825,7 @@ export function PipelinePage() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setInspectedStage(stage);
+                              openInspector(stage);
                             }}
                             className="mt-1.5 flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-200 border border-zinc-700 hover:bg-zinc-700"
                           >
@@ -826,6 +902,51 @@ export function PipelinePage() {
                 </div>
               </div>
 
+              {/* Inline Stage Deadline Editor */}
+              <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Calendar className="h-3.5 w-3.5 text-zinc-400" />
+                  <span className="text-zinc-300 font-medium">Deadline:</span>
+                  {inspectedStage.deadline ? (
+                    <span
+                      className={`font-mono text-[11px] ${getUrgencyStyles(getDeadlineUrgency(inspectedStage.deadline, inspectedStage.status)).text}`}
+                      title={formatInUserTimeZone(inspectedStage.deadline, activeTimeZone, 'full')}
+                    >
+                      {formatDeadlineCountdown(inspectedStage.deadline, inspectedStage.status, activeTimeZone)} (
+                      {formatInUserTimeZone(inspectedStage.deadline, activeTimeZone, 'shortDateTime')}{' '}
+                      {getTimeZoneShortLabel(activeTimeZone)})
+                    </span>
+                  ) : (
+                    <span className="text-zinc-500 text-[11px]">Not set ({getTimeZoneShortLabel(activeTimeZone)})</span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <DeadlineDatePicker
+                    compact
+                    timeZone={activeTimeZone}
+                    value={stageDeadlineInput}
+                    onChange={setStageDeadlineInput}
+                    className="w-48"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="h-7 px-2.5 text-[11px]"
+                    isLoading={updateStageDeadlineMutation.isPending}
+                    onClick={() =>
+                      updateStageDeadlineMutation.mutate({
+                        assignmentId: inspectedStage.assignmentId,
+                        deadline: stageDeadlineInput || null,
+                      })
+                    }
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
+
               {/* Active Deliverable Submission Details */}
               {inspectedStage.latestDeliverable ? (
                 <div className="space-y-4">
@@ -842,7 +963,7 @@ export function PipelinePage() {
                           </strong>{' '}
                           • Rev #{inspectedStage.latestDeliverable.revision}
                           {inspectedStage.latestDeliverable.createdAt && (
-                            <span> • {new Date(inspectedStage.latestDeliverable.createdAt).toLocaleString()}</span>
+                            <span> • {formatInUserTimeZone(inspectedStage.latestDeliverable.createdAt, activeTimeZone, 'shortDateTime')}</span>
                           )}
                         </p>
                       </div>
@@ -932,7 +1053,7 @@ export function PipelinePage() {
                                 Rev #{del.revision}: {del.label}
                               </span>
                               <span className="text-[11px] text-zinc-500 ml-2">
-                                {new Date(del.createdAt).toLocaleDateString()}
+                                {formatInUserTimeZone(del.createdAt, activeTimeZone, 'dateOnly')}
                               </span>
                               {del.notes && <p className="text-[11px] text-zinc-400 mt-0.5">"{del.notes}"</p>}
                             </div>

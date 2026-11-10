@@ -6,7 +6,11 @@ export async function workTypeRoutes(fastify: FastifyInstance) {
   // List Work Types
   fastify.get('/', async (request, reply) => {
     const context = await request.requireAuth();
-    const workTypes = await WorkTypeModel.find({ organizationId: context.organizationId })
+    const workTypes = await WorkTypeModel.find({
+      organizationId: context.organizationId,
+      code: { $nin: ['UP', 'UPL', 'UPLOAD'] },
+      name: { $not: /^upload(ing|er)?$/i },
+    })
       .sort({ sortOrder: 1, name: 1 })
       .lean();
 

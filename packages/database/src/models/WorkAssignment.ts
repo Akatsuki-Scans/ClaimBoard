@@ -17,6 +17,8 @@ export interface IWorkAssignment extends Document {
   claimedAt?: Date;
   submittedAt?: Date;
   completedAt?: Date;
+  deadlineReminderSentAt?: Date;
+  overdueAlertSentAt?: Date;
   activeClaimId?: mongoose.Types.ObjectId;
   discordSubmissionMessageId?: string;
   discordSubmissionChannelId?: string;
@@ -43,6 +45,8 @@ const WorkAssignmentSchema = new Schema<IWorkAssignment>(
     claimedAt: { type: Date },
     submittedAt: { type: Date },
     completedAt: { type: Date },
+    deadlineReminderSentAt: { type: Date },
+    overdueAlertSentAt: { type: Date },
     activeClaimId: { type: Schema.Types.ObjectId, ref: 'Claim' },
     discordSubmissionMessageId: { type: String },
     discordSubmissionChannelId: { type: String },

@@ -315,3 +315,17 @@ export function ActivityIcon({ className = 'h-4 w-4', strokeWidth = 1.5, ...prop
     </svg>
   );
 }
+
+export function CalendarIcon({ className = 'h-4 w-4', strokeWidth = 1.5, ...props }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+      <rect x="3" y="4" width="18" height="17" rx="2.5" />
+      <line x1="8" y1="2.5" x2="8" y2="5.5" />
+      <line x1="16" y1="2.5" x2="16" y2="5.5" />
+      <line x1="3" y1="9.5" x2="21" y2="9.5" />
+      <circle cx="8.5" cy="14" r="0.8" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="14" r="0.8" fill="currentColor" stroke="none" />
+      <circle cx="15.5" cy="14" r="0.8" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}

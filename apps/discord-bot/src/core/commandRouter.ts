@@ -83,6 +83,7 @@ export class CommandRouter {
           webUrl: this.webUrl,
         });
       } catch (err: any) {
+        if (err?.code === 40060) return;
         console.error(`[CommandRouter] Error executing /${commandName} (Module: ${module.id}):`, err);
         const errorMessage = `Command Error: ${err.message || 'An unexpected error occurred.'}`;
 
@@ -334,8 +335,9 @@ export class CommandRouter {
         break;
       }
 
-      case 'addlog': {
-        const isAdmin = await checkIsAdmin(message.author.id);
+      case 'addlog':
+      case 'add-log-channel': {
+        const isAdmin = await checkIsAdmin(message.author.id, message.member?.permissions);
         if (!isAdmin) {
           await message.reply('❌ **Permission Denied**: Only administrators can configure bot log channels.');
           return;
@@ -359,7 +361,7 @@ export class CommandRouter {
           addedById: message.author.id,
           addedByName: message.author.tag || message.author.username,
         });
-        await message.reply(`✅ Designated <#${targetChannel.id}> as the ClaimBoard bot log channel! Use \`!dellog\` or \`/dellog\` to remove it.`);
+        await message.reply(`✅ Designated <#${targetChannel.id}> as the ClaimBoard bot log channel! Use \`/remove-log-channel\` or \`!dellog\` to remove it.`);
         await BotLogger.logChannelAdded({
           client: this.client,
           guildId: message.guildId,
@@ -370,8 +372,10 @@ export class CommandRouter {
         break;
       }
 
-      case 'dellog': {
-        const isAdmin = await checkIsAdmin(message.author.id);
+      case 'dellog':
+      case 'removelog':
+      case 'remove-log-channel': {
+        const isAdmin = await checkIsAdmin(message.author.id, message.member?.permissions);
         if (!isAdmin) {
           await message.reply('❌ **Permission Denied**: Only administrators can manage bot log channels.');
           return;
@@ -392,7 +396,7 @@ export class CommandRouter {
           }
         }
         if (!removed.deletedCount) {
-          await message.reply('ℹ️ No active bot log channel found for this server. Use `!addlog` or `/addlog` to set one.');
+          await message.reply('ℹ️ No active bot log channel found for this server. Use `/add-log-channel` to set one.');
           return;
         }
         await message.reply(`🗑️ Removed <#${removedId}> from bot log channels.`);
@@ -403,6 +407,14 @@ export class CommandRouter {
           adminTag: message.author.tag || message.author.username,
           adminId: message.author.id,
         });
+        break;
+      }
+
+      case 'calendar':
+      case 'deadline': {
+        await message.reply(
+          `📅 **ClaimBoard Deadlines & Calendar**\nUse slash commands in Discord:\n• \`/calendar\` — View interactive monthly deadline calendar\n• \`/deadline list\` — List upcoming & overdue tasks\n• \`/deadline set\` — Set or update a task/chapter deadline\n\nWeb Calendar: [Schedule & Deadlines](${this.webUrl}/calendar)`
+        );
         break;
       }
 

@@ -19,7 +19,7 @@ import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import websocket from '@fastify/websocket';
-import { connectDatabase, OrganizationModel } from '@claimboard/database';
+import { connectDatabase, OrganizationModel, ProductionService } from '@claimboard/database';
 import { authPlugin } from './plugins/authPlugin';
 import { websocketPlugin } from './plugins/websocketPlugin';
 import { startBackgroundJobs, stopBackgroundJobs } from './jobs/scheduler';
@@ -41,6 +41,7 @@ import { discordRoutes } from './modules/discord/discordRoutes';
 import { notificationRoutes } from './modules/notifications/notificationRoutes';
 import { auditRoutes } from './modules/audit/auditRoutes';
 import { settingsRoutes } from './modules/settings/settingsRoutes';
+import { deadlineRoutes } from './modules/deadlines/deadlineRoutes';
 
 export async function buildServer() {
   const app = fastify({
@@ -95,14 +96,18 @@ export async function buildServer() {
   await app.register(notificationRoutes, { prefix: '/api/notifications' });
   await app.register(auditRoutes, { prefix: '/api/audit' });
   await app.register(settingsRoutes, { prefix: '/api/settings' });
+  await app.register(deadlineRoutes, { prefix: '/api/deadlines' });
 
   return app;
 }
 
 export async function start() {
   try {
-    // 1. Connect to Database
+    // 1. Connect to Database & remove legacy roles/duplicate assignments
     await connectDatabase();
+    await ProductionService.cleanupLegacyRolesAndDuplicates().catch((e) =>
+      console.warn('[Server] Non-fatal startup cleanup warning:', e?.message || e)
+    );
 
     // 2. Build Fastify instance
 

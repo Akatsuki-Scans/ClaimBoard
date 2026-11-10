@@ -12,7 +12,6 @@ import {
   OpenWorkIcon,
   MyClaimsIcon,
   PipelineIcon,
-  ClockIcon,
   ArrowRightIcon,
   CheckIcon,
   AlertTriangleIcon,
@@ -20,9 +19,17 @@ import {
   ActivityIcon,
   TeamIcon,
   MoreHorizontalIcon,
+  CalendarIcon,
 } from '../../components/ui/icon';
 import { Briefcase } from 'lucide-react';
 import { UserAvatar, MangaCover } from '../../components/ui/Avatar';
+import {
+  formatDeadlineCountdown,
+  formatInUserTimeZone,
+  getBrowserTimeZone,
+  getDeadlineUrgency,
+  getUrgencyStyles,
+} from '../../lib/deadlines';
 
 function formatTimeAgo(dateString?: string | Date): string {
   if (!dateString) return 'Just now';
@@ -38,21 +45,6 @@ function formatTimeAgo(dateString?: string | Date): string {
   return `${diffInDays}d ago`;
 }
 
-function formatDeadlineLeft(deadline?: string | Date): string {
-  if (!deadline) return 'No deadline';
-  const now = new Date();
-  const target = new Date(deadline);
-  const diffInMs = target.getTime() - now.getTime();
-  if (diffInMs <= 0) return 'Overdue';
-  const hours = Math.floor(diffInMs / (1000 * 60 * 60));
-  const mins = Math.floor((diffInMs % (1000 * 60 * 60)) / (1000 * 60));
-  if (hours > 24) {
-    const days = Math.floor(hours / 24);
-    return `${days}d left`;
-  }
-  return `${hours}h ${mins}m left`;
-}
-
 function ActivityAvatar({ src, name }: { src?: string; name?: string }) {
   return <UserAvatar src={src} name={name} size="sm" />;
 }
@@ -60,6 +52,12 @@ function ActivityAvatar({ src, name }: { src?: string; name?: string }) {
 export function DashboardPage() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+
+  const { data: tzData } = useQuery<{ timezone: string | null }>({
+    queryKey: ['deadlines', 'timezone'],
+    queryFn: () => apiRequest<{ timezone: string | null }>('/deadlines/timezone').catch(() => ({ timezone: null })),
+  });
+  const activeTimeZone = tzData?.timezone || getBrowserTimeZone();
 
   const [openWorkFilter, setOpenWorkFilter] = useState<'All' | 'High' | 'Normal' | 'Low'>('All');
   const [claimsFilter, setClaimsFilter] = useState<'Active' | 'Due Soon' | 'Overdue' | 'Completed'>('Active');
@@ -178,12 +176,10 @@ export function DashboardPage() {
       return status === 'ACTIVE' || status === 'IN_PROGRESS' || status === 'CLAIMED' || status === 'CHANGES_REQUESTED';
     }
     if (claimsFilter === 'Due Soon') {
-      if (!claim.deadline) return false;
-      const hours = (new Date(claim.deadline).getTime() - Date.now()) / (1000 * 60 * 60);
-      return hours > 0 && hours <= 24;
+      return getDeadlineUrgency(claim.deadline, claim.status) === 'due_soon';
     }
     if (claimsFilter === 'Overdue') {
-      return claim.isOverdue || (claim.deadline && new Date(claim.deadline) < new Date() && status !== 'COMPLETED');
+      return claim.isOverdue || getDeadlineUrgency(claim.deadline, claim.status) === 'overdue';
     }
     if (claimsFilter === 'Completed') {
       return status === 'COMPLETED';
@@ -193,12 +189,8 @@ export function DashboardPage() {
 
   const claimsCounts = {
     active: liveClaims.filter((c: any) => ['ACTIVE', 'IN_PROGRESS', 'CLAIMED', 'CHANGES_REQUESTED'].includes(c.status)).length,
-    dueSoon: liveClaims.filter((c: any) => {
-      if (!c.deadline) return false;
-      const hours = (new Date(c.deadline).getTime() - Date.now()) / (1000 * 60 * 60);
-      return hours > 0 && hours <= 24;
-    }).length,
-    overdue: liveClaims.filter((c: any) => c.isOverdue || (c.deadline && new Date(c.deadline) < new Date() && c.status !== 'COMPLETED')).length,
+    dueSoon: liveClaims.filter((c: any) => getDeadlineUrgency(c.deadline, c.status) === 'due_soon').length,
+    overdue: liveClaims.filter((c: any) => c.isOverdue || getDeadlineUrgency(c.deadline, c.status) === 'overdue').length,
     completed: liveClaims.filter((c: any) => c.status === 'COMPLETED').length,
   };
 
@@ -389,9 +381,16 @@ export function DashboardPage() {
                             {t.workType?.name || 'Task'}
                           </span>
 
-                          <span className="text-[10px] font-mono text-zinc-400 flex items-center gap-1">
-                            <ClockIcon className="h-3 w-3 text-zinc-500" />
-                            {formatDeadlineLeft(t.deadline)}
+                          <span
+                            className={`text-[10px] font-mono tabular-nums flex items-center gap-1 ${
+                              t.deadline
+                                ? getUrgencyStyles(getDeadlineUrgency(t.deadline, t.status)).text
+                                : 'text-zinc-500'
+                            }`}
+                            title={t.deadline ? formatInUserTimeZone(t.deadline, activeTimeZone, 'full') : undefined}
+                          >
+                            <CalendarIcon className="h-3 w-3 shrink-0 opacity-85" />
+                            {formatDeadlineCountdown(t.deadline, t.status, activeTimeZone)}
                           </span>
 
                           <Button
@@ -584,8 +583,16 @@ export function DashboardPage() {
                           {c.workTypeName || 'Task'}
                         </span>
 
-                        <span className="text-[10px] font-mono text-zinc-400 hidden sm:inline">
-                          {formatDeadlineLeft(c.deadline)}
+                        <span
+                          className={`text-[10px] font-mono tabular-nums hidden sm:inline-flex items-center gap-1 ${
+                            c.deadline
+                              ? getUrgencyStyles(getDeadlineUrgency(c.deadline, c.status)).text
+                              : 'text-zinc-500'
+                          }`}
+                          title={c.deadline ? formatInUserTimeZone(c.deadline, activeTimeZone, 'full') : undefined}
+                        >
+                          {c.deadline && <CalendarIcon className="h-3 w-3 shrink-0 opacity-85" />}
+                          {formatDeadlineCountdown(c.deadline, c.status, activeTimeZone)}
                         </span>
 
                         {c.status === 'COMPLETED' ? (

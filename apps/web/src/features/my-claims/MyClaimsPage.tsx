@@ -5,7 +5,14 @@ import { apiRequest } from '../../lib/api';
 import { Button } from '../../components/ui/Button';
 import { Input, Textarea } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
-import { SearchIcon, ClockIcon, CheckCircleIcon } from '../../components/ui/icon';
+import { SearchIcon, ClockIcon, CheckCircleIcon, CalendarIcon } from '../../components/ui/icon';
+import {
+  formatDeadlineCountdown,
+  formatInUserTimeZone,
+  getBrowserTimeZone,
+  getDeadlineUrgency,
+  getUrgencyStyles,
+} from '../../lib/deadlines';
 
 export function MyClaimsPage() {
   const queryClient = useQueryClient();
@@ -23,6 +30,12 @@ export function MyClaimsPage() {
     queryKey: ['claims', 'my'],
     queryFn: () => apiRequest<any[]>('/claims/my').catch(() => []),
   });
+
+  const { data: tzData } = useQuery<{ timezone: string | null }>({
+    queryKey: ['deadlines', 'timezone'],
+    queryFn: () => apiRequest<{ timezone: string | null }>('/deadlines/timezone').catch(() => ({ timezone: null })),
+  });
+  const activeTimeZone = tzData?.timezone || getBrowserTimeZone();
 
   // Submit Deliverable Mutation
   const submitMutation = useMutation({
@@ -59,9 +72,10 @@ export function MyClaimsPage() {
 
   const realClaims = (claims || []).filter((item) => {
     const status = item.status || 'Active';
+    const urgency = getDeadlineUrgency(item.deadline, status);
     if (activeFilter === 'Active' && status !== 'ACTIVE' && status !== 'IN_PROGRESS' && status !== 'CLAIMED') return false;
-    if (activeFilter === 'Due Soon' && status !== 'DUE_SOON' && !item.isDueSoon) return false;
-    if (activeFilter === 'Overdue' && !item.isOverdue) return false;
+    if (activeFilter === 'Due Soon' && urgency !== 'due_soon') return false;
+    if (activeFilter === 'Overdue' && urgency !== 'overdue' && !item.isOverdue) return false;
     if (activeFilter === 'Review' && status !== 'SUBMITTED' && status !== 'UNDER_REVIEW') return false;
     if (activeFilter === 'Completed' && status !== 'COMPLETED') return false;
     if (searchQuery) {
@@ -181,8 +195,25 @@ export function MyClaimsPage() {
                         {item.status}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-zinc-400 font-mono text-[11px]">
-                      {item.deadline ? new Date(item.deadline).toLocaleDateString() : 'No deadline'}
+                    <td className="py-3 px-4 font-mono text-[11px]">
+                      {item.deadline ? (
+                        (() => {
+                          const urgency = getDeadlineUrgency(item.deadline, item.status);
+                          const styles = getUrgencyStyles(urgency);
+                          return (
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[10px] tabular-nums ${styles.badge}`}
+                              title={formatInUserTimeZone(item.deadline, activeTimeZone, 'full')}
+                            >
+                              <span className={`h-1.5 w-1.5 rounded-full ${styles.dot}`} />
+                              <CalendarIcon className="h-3 w-3 shrink-0 opacity-85" />
+                              {formatDeadlineCountdown(item.deadline, item.status, activeTimeZone)}
+                            </span>
+                          );
+                        })()
+                      ) : (
+                        <span className="text-zinc-500">No deadline</span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-right">
                       {item.status === 'COMPLETED' ? (

@@ -3,6 +3,7 @@ import {
   DiscordGuildModel,
   DiscordChannelModel,
   DiscordRoleMappingModel,
+  DiscordLogChannelModel,
   MangaModel,
   ChapterModel,
   WorkTypeModel,
@@ -318,5 +319,98 @@ export async function discordRoutes(fastify: FastifyInstance) {
         claims: claimsList,
       },
     });
+  });
+
+  // Get Log Channels
+  fastify.get('/log-channels', async (request, reply) => {
+    const context = await request.requireAuth();
+    const channels = await DiscordLogChannelModel.find({
+      $or: [
+        { organizationId: context.organizationId },
+        { organizationId: { $exists: false } },
+        { organizationId: null },
+      ],
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return reply.send({
+      success: true,
+      data: channels.map((c: any) => ({
+        id: c._id.toString(),
+        guildId: c.guildId,
+        channelId: c.channelId,
+        channelName: c.channelName || `channel-${c.channelId}`,
+        addedByName: c.addedByName,
+        createdAt: c.createdAt,
+      })),
+    });
+  });
+
+  // Add Log Channel from Web
+  fastify.post('/log-channels', async (request, reply) => {
+    const context = await request.requirePermission('discord.manage');
+    const { guildId, channelId, channelName } = (request.body as any) || {};
+
+    if (!channelId) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: API_ERROR_CODES.VALIDATION_ERROR, message: 'channelId is required' },
+      });
+    }
+
+    const record = await DiscordLogChannelModel.findOneAndUpdate(
+      { guildId: guildId || 'guild_primary', channelId: String(channelId).trim() },
+      {
+        $set: {
+          organizationId: context.organizationId,
+          channelName: channelName?.trim() || `log-${String(channelId).slice(-4)}`,
+          addedById: context.user.id,
+          addedByName: context.user.displayName,
+        },
+      },
+      { upsert: true, new: true }
+    );
+
+    await AuditLogModel.create({
+      organizationId: context.organizationId,
+      actorId: context.user.id,
+      actorName: context.user.displayName,
+      action: 'DISCORD_LOG_CHANNEL_ADDED',
+      entity: 'DiscordLogChannel',
+      entityId: record._id.toString(),
+      after: { channelId, channelName },
+    });
+
+    return reply.send({
+      success: true,
+      data: {
+        id: record._id.toString(),
+        guildId: record.guildId,
+        channelId: record.channelId,
+        channelName: record.channelName,
+        addedByName: record.addedByName,
+        createdAt: record.createdAt,
+      },
+    });
+  });
+
+  // Remove Log Channel
+  fastify.delete('/log-channels/:id', async (request, reply) => {
+    const context = await request.requirePermission('discord.manage');
+    const { id } = request.params as any;
+
+    await DiscordLogChannelModel.deleteOne({ _id: id });
+
+    await AuditLogModel.create({
+      organizationId: context.organizationId,
+      actorId: context.user.id,
+      actorName: context.user.displayName,
+      action: 'DISCORD_LOG_CHANNEL_REMOVED',
+      entity: 'DiscordLogChannel',
+      entityId: id,
+    });
+
+    return reply.send({ success: true, message: 'Log channel removed' });
   });
 }

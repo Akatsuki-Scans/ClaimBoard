@@ -11,6 +11,7 @@ import { MangaDetailPage } from './features/manga/MangaDetailPage';
 import { HistoryPage } from './features/history/HistoryPage';
 import { TeamPage } from './features/team/TeamPage';
 import { NotificationsPage } from './features/notifications/NotificationsPage';
+import { CalendarPage } from './features/calendar/CalendarPage';
 
 // Admin Pages
 import { AdminOverviewPage } from './features/admin/AdminOverviewPage';
@@ -44,6 +45,8 @@ export function App() {
         <Route path="/manga/:id" element={<MangaDetailPage />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/team" element={<TeamPage />} />
+        <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/deadlines" element={<Navigate to="/calendar" replace />} />
         <Route path="/analytics" element={<AdminAnalyticsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
 

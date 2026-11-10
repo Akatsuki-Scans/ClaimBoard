@@ -15,7 +15,9 @@ export interface ModalProps {
 export function Modal({ isOpen, onClose, title, description, children, className }: ModalProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !document.querySelector('[data-rac-popover="true"]')) {
+        onClose();
+      }
     };
     if (isOpen) {
       document.body.style.overflow = 'hidden';

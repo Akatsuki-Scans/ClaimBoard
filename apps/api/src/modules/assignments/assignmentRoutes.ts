@@ -3,6 +3,26 @@ import { WorkAssignmentModel, MangaModel, ChapterModel, WorkTypeModel, AuditLogM
 import { CreateAssignmentSchema, ApplyTemplateSchema, API_ERROR_CODES } from '@claimboard/shared';
 import { ProductionService } from '../../services/productionService';
 
+function filterUniqueValidAssignments(assignments: any[]): any[] {
+  const seenSlots = new Set<string>();
+  const out: any[] = [];
+  for (const a of assignments) {
+    if (!a.chapterId || !a.workTypeId) continue;
+    const wtName = a.workTypeId?.name || '';
+    const wtCode = (a.workTypeId?.code || '').toUpperCase();
+    if (/^upload(ing|er)?$/i.test(wtName) || ['UP', 'UPL', 'UPLOAD'].includes(wtCode)) {
+      continue;
+    }
+    const chIdStr = a.chapterId?._id ? a.chapterId._id.toString() : a.chapterId?.toString();
+    const wtIdStr = a.workTypeId?._id ? a.workTypeId._id.toString() : a.workTypeId?.toString();
+    const slotKey = `${chIdStr}:${wtIdStr}`;
+    if (seenSlots.has(slotKey)) continue;
+    seenSlots.add(slotKey);
+    out.push({ a, chIdStr, wtIdStr });
+  }
+  return out;
+}
+
 export async function assignmentRoutes(fastify: FastifyInstance) {
   // Open Work Query (Specification #30 & #95: Open Work board with list, kanban, by manga, by work type)
   fastify.get('/open', async (request, reply) => {
@@ -30,12 +50,12 @@ export async function assignmentRoutes(fastify: FastifyInstance) {
       .sort({ createdAt: -1 })
       .lean();
 
-    const formatted = assignments.map((a: any) => ({
+    const formatted = filterUniqueValidAssignments(assignments as any[]).map(({ a, chIdStr, wtIdStr }) => ({
       id: a._id.toString(),
       organizationId: a.organizationId.toString(),
       mangaId: a.mangaId?._id?.toString() || a.mangaId?.toString(),
-      chapterId: a.chapterId?._id?.toString() || a.chapterId?.toString(),
-      workTypeId: a.workTypeId?._id?.toString() || a.workTypeId?.toString(),
+      chapterId: chIdStr,
+      workTypeId: wtIdStr,
       manga: a.mangaId ? { id: a.mangaId._id?.toString(), title: a.mangaId.title, coverUrl: a.mangaId.coverUrl } : undefined,
       mangaTitle: a.mangaId?.title || 'Unknown Manga',
       chapter: a.chapterId ? { id: a.chapterId._id?.toString(), chapterNumber: a.chapterId.chapterNumber, title: a.chapterId.title, priority: a.chapterId.priority } : undefined,
@@ -84,33 +104,35 @@ export async function assignmentRoutes(fastify: FastifyInstance) {
       .sort({ createdAt: 1 })
       .lean();
 
+    const deduped = filterUniqueValidAssignments(assignments as any[]).map(({ a, chIdStr, wtIdStr }) => ({
+      ...a,
+      id: a._id.toString(),
+      mangaId: a.mangaId?._id ? a.mangaId._id.toString() : a.mangaId?.toString(),
+      chapterId: chIdStr,
+      workTypeId: wtIdStr,
+      manga: a.mangaId && typeof a.mangaId === 'object' ? {
+        id: a.mangaId._id?.toString(),
+        title: a.mangaId.title,
+        coverUrl: a.mangaId.coverUrl,
+      } : undefined,
+      mangaTitle: a.mangaId?.title || (typeof a.mangaId === 'string' ? a.mangaId : 'Unknown Manga'),
+      chapter: a.chapterId && typeof a.chapterId === 'object' ? {
+        id: a.chapterId._id?.toString(),
+        chapterNumber: a.chapterId.chapterNumber,
+        title: a.chapterId.title,
+      } : undefined,
+      chapterNumber: a.chapterId?.chapterNumber,
+      workType: a.workTypeId,
+      workTypeName: a.workTypeId?.name,
+    }));
+
     return reply.send({
       success: true,
-      data: assignments.map((a: any) => ({
-        ...a,
-        id: a._id.toString(),
-        mangaId: a.mangaId?._id ? a.mangaId._id.toString() : a.mangaId?.toString(),
-        chapterId: a.chapterId?._id ? a.chapterId._id.toString() : a.chapterId?.toString(),
-        workTypeId: a.workTypeId?._id ? a.workTypeId._id.toString() : a.workTypeId?.toString(),
-        manga: a.mangaId && typeof a.mangaId === 'object' ? {
-          id: a.mangaId._id?.toString(),
-          title: a.mangaId.title,
-          coverUrl: a.mangaId.coverUrl,
-        } : undefined,
-        mangaTitle: a.mangaId?.title || (typeof a.mangaId === 'string' ? a.mangaId : 'Unknown Manga'),
-        chapter: a.chapterId && typeof a.chapterId === 'object' ? {
-          id: a.chapterId._id?.toString(),
-          chapterNumber: a.chapterId.chapterNumber,
-          title: a.chapterId.title,
-        } : undefined,
-        chapterNumber: a.chapterId?.chapterNumber,
-        workType: a.workTypeId,
-        workTypeName: a.workTypeId?.name,
-      })),
+      data: deduped,
     });
   });
 
-  // Create Assignment
+  // Create Assignment (single workTypeId or batch workTypeIds)
   fastify.post('/', async (request, reply) => {
     const context = await request.requirePermission('assignments.create');
     const parse = CreateAssignmentSchema.safeParse(request.body);
@@ -121,18 +143,26 @@ export async function assignmentRoutes(fastify: FastifyInstance) {
       });
     }
 
+    const workTypeIds =
+      parse.data.workTypeIds && parse.data.workTypeIds.length > 0
+        ? Array.from(new Set(parse.data.workTypeIds))
+        : [parse.data.workTypeId!];
+
     const created = await ProductionService.assignWork({
       organizationId: context.organizationId,
       mangaId: parse.data.mangaId,
       chapterId: parse.data.chapterId,
-      workTypeIds: [parse.data.workTypeId],
+      workTypeIds,
       priority: parse.data.priority as any,
       deadline: parse.data.deadline ? new Date(parse.data.deadline) : undefined,
       actorId: context.user.id,
       actorName: context.user.displayName,
     });
 
-    return reply.status(201).send({ success: true, data: created[0] });
+    return reply.status(201).send({
+      success: true,
+      data: parse.data.workTypeIds ? created : created[0],
+    });
   });
 
   // Update Priority
@@ -171,27 +201,28 @@ export async function assignmentRoutes(fastify: FastifyInstance) {
     const { deadline } = (request.body as any) || {};
 
     const parsedDate = deadline ? new Date(deadline) : null;
-    const assignment = await WorkAssignmentModel.findOneAndUpdate(
-      { _id: id, organizationId: context.organizationId },
-      { $set: { deadline: parsedDate } },
-      { new: true }
-    );
-
-    if (!assignment) {
-      return reply.status(404).send({ success: false, error: { code: API_ERROR_CODES.ASSIGNMENT_NOT_FOUND, message: 'Assignment not found' } });
+    if (parsedDate && isNaN(parsedDate.getTime())) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: API_ERROR_CODES.DEADLINE_INVALID, message: 'Invalid deadline date' },
+      });
     }
 
-    await AuditLogModel.create({
-      organizationId: context.organizationId,
-      actorId: context.user.id,
-      actorName: context.user.displayName,
-      action: 'ASSIGNMENT_DEADLINE_UPDATED',
-      entity: 'WorkAssignment',
-      entityId: id,
-      after: { deadline: parsedDate },
-    });
-
-    return reply.send({ success: true, data: assignment });
+    try {
+      const assignment = await ProductionService.updateAssignmentDeadline({
+        organizationId: context.organizationId,
+        assignmentId: id,
+        deadline: parsedDate,
+        actorId: context.user.id,
+        actorName: context.user.displayName,
+      });
+      return reply.send({ success: true, data: assignment });
+    } catch (err: any) {
+      return reply.status(err.code === API_ERROR_CODES.ASSIGNMENT_NOT_FOUND ? 404 : 400).send({
+        success: false,
+        error: { code: err.code || API_ERROR_CODES.INTERNAL_SERVER_ERROR, message: err.message },
+      });
+    }
   });
 
   // Update Status (for Drag and Drop pipeline progression)
@@ -208,43 +239,20 @@ export async function assignmentRoutes(fastify: FastifyInstance) {
       });
     }
 
-    const updateFields: any = { status };
-    if (status === 'COMPLETED') {
-      updateFields.completedAt = new Date();
-    } else if (status === 'IN_PROGRESS') {
-      // If unassigned, automatically assign to current user
-      const existing = await WorkAssignmentModel.findOne({ _id: id, organizationId: context.organizationId });
-      if (existing && !existing.assignedWorkerId) {
-        updateFields.assignedWorkerId = context.user.id;
-        updateFields.assignedWorkerName = context.user.displayName;
-        updateFields.claimedAt = new Date();
-      }
+    try {
+      const assignment = await ProductionService.updateAssignmentStatus({
+        organizationId: context.organizationId,
+        assignmentId: id,
+        status,
+        actorId: context.user.id,
+        actorName: context.user.displayName,
+      });
+      return reply.send({ success: true, data: assignment });
+    } catch (err: any) {
+      return reply.status(err.code === API_ERROR_CODES.ASSIGNMENT_NOT_FOUND ? 404 : 400).send({
+        success: false,
+        error: { code: err.code || API_ERROR_CODES.INTERNAL_SERVER_ERROR, message: err.message },
+      });
     }
-
-    const assignment: any = await WorkAssignmentModel.findOneAndUpdate(
-      { _id: id, organizationId: context.organizationId },
-      { $set: updateFields },
-      { new: true }
-    ).populate('workTypeId');
-
-    if (!assignment) {
-      return reply.status(404).send({ success: false, error: { code: API_ERROR_CODES.ASSIGNMENT_NOT_FOUND, message: 'Assignment not found' } });
-    }
-
-    if (status === 'COMPLETED') {
-      await ProductionService.unblockDependentAssignments(id, context.organizationId);
-    }
-
-    await AuditLogModel.create({
-      organizationId: context.organizationId,
-      actorId: context.user.id,
-      actorName: context.user.displayName,
-      action: 'ASSIGNMENT_STATUS_UPDATED',
-      entity: 'WorkAssignment',
-      entityId: id,
-      after: { status },
-    });
-
-    return reply.send({ success: true, data: assignment });
   });
 }

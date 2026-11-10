@@ -13,6 +13,7 @@ import {
   Bot,
   ShieldCheck,
   UserCheck,
+  Calendar,
   X,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
@@ -64,6 +65,9 @@ export function CommandPalette() {
           case 'p':
             navigate('/pipeline');
             break;
+          case 'c':
+            navigate('/calendar');
+            break;
           case 'a':
             if (isAdmin) navigate('/admin');
             break;
@@ -86,6 +90,7 @@ export function CommandPalette() {
     { label: 'Open Work', icon: Briefcase, path: '/open-work', shortcut: 'O' },
     { label: 'My Claims', icon: Bookmark, path: '/my-claims', shortcut: 'M' },
     { label: 'Production Pipeline', icon: GitFork, path: '/pipeline', shortcut: 'P' },
+    { label: 'Calendar', icon: Calendar, path: '/calendar', shortcut: 'C' },
     { label: 'Manga Catalog', icon: BookOpen, path: '/manga' },
     { label: 'Team Workload', icon: Users, path: '/team' },
     { label: 'Notification Center', icon: Bell, path: '/notifications' },

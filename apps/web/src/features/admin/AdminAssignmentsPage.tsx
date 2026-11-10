@@ -6,6 +6,7 @@ import { searchAnilistManga } from '../../lib/anilist';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { DeadlineDatePicker } from '../../components/application/date-picker/DatePicker';
 import { Modal } from '../../components/ui/Modal';
 import {
   OpenWorkIcon,
@@ -14,18 +15,39 @@ import {
   ClockIcon,
   AlertTriangleIcon,
   LayersIcon,
+  CalendarIcon,
 } from '../../components/ui/icon';
-import { Lock } from 'lucide-react';
+import { Check, Lock } from 'lucide-react';
+import {
+  formatDeadlineCountdown,
+  formatInUserTimeZone,
+  getBrowserTimeZone,
+  getDeadlineUrgency,
+  getPresetDateTimeLocal,
+  getTimeZoneShortLabel,
+  getUrgencyStyles,
+  toDateTimeLocalValue,
+  zonedDateTimeLocalToIso,
+} from '../../lib/deadlines';
 
 export function AdminAssignmentsPage() {
   const queryClient = useQueryClient();
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [selectedMangaId, setSelectedMangaId] = useState('');
   const [chapterNumber, setChapterNumber] = useState('');
-  const [selectedWorkTypeId, setSelectedWorkTypeId] = useState('');
+  const [selectedWorkTypeIds, setSelectedWorkTypeIds] = useState<string[]>([]);
   const [selectedPriority, setSelectedPriority] = useState('Normal');
+  const [assignmentDeadline, setAssignmentDeadline] = useState(() => getPresetDateTimeLocal(48, getBrowserTimeZone()));
+  const [editingDeadlineItem, setEditingDeadlineItem] = useState<any | null>(null);
+  const [editDeadlineInput, setEditDeadlineInput] = useState('');
   const [anilistLatestChapter, setAnilistLatestChapter] = useState<number | null>(null);
   const [isFetchingAnilist, setIsFetchingAnilist] = useState(false);
+
+  const { data: tzData } = useQuery<{ timezone: string | null }>({
+    queryKey: ['deadlines', 'timezone'],
+    queryFn: () => apiRequest<{ timezone: string | null }>('/deadlines/timezone').catch(() => ({ timezone: null })),
+  });
+  const activeTimeZone = tzData?.timezone || getBrowserTimeZone();
 
   // Queries
   const { data: assignments, isLoading } = useQuery({
@@ -90,12 +112,15 @@ export function AdminAssignmentsPage() {
 
   // Smart suggestions
   const { data: suggestions } = useQuery({
-    queryKey: ['smart-suggestions', selectedWorkTypeId],
+    queryKey: ['smart-suggestions', selectedWorkTypeIds.join(',')],
     queryFn: () => apiRequest<any[]>('/analytics/smart-suggestions'),
   });
 
   const createAssignmentMutation = useMutation({
     mutationFn: async () => {
+      if (selectedWorkTypeIds.length === 0) {
+        throw new Error('Select at least one role / work type');
+      }
       let targetChapterId = '';
 
       // Check if chapter already exists in database
@@ -121,16 +146,37 @@ export function AdminAssignmentsPage() {
         body: JSON.stringify({
           mangaId: selectedMangaId,
           chapterId: targetChapterId,
-          workTypeId: selectedWorkTypeId,
+          workTypeIds: selectedWorkTypeIds,
           priority: selectedPriority,
+          deadline: assignmentDeadline ? (zonedDateTimeLocalToIso(assignmentDeadline, activeTimeZone) || undefined) : undefined,
         }),
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
       queryClient.invalidateQueries({ queryKey: ['chapters'] });
+      queryClient.invalidateQueries({ queryKey: ['deadlines'] });
       setIsAssignModalOpen(false);
       setChapterNumber('');
+      setSelectedWorkTypeIds([]);
+      setAssignmentDeadline(getPresetDateTimeLocal(48, activeTimeZone));
+    },
+  });
+
+  const updateDeadlineMutation = useMutation({
+    mutationFn: async ({ assignmentId, deadline }: { assignmentId: string; deadline: string | null }) => {
+      return apiRequest(`/assignments/${assignmentId}/deadline`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          deadline: deadline ? zonedDateTimeLocalToIso(deadline, activeTimeZone) : null,
+        }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['deadlines'] });
+      queryClient.invalidateQueries({ queryKey: ['pipeline'] });
+      setEditingDeadlineItem(null);
     },
   });
 
@@ -150,7 +196,15 @@ export function AdminAssignmentsPage() {
           </p>
         </div>
 
-        <Button variant="primary" size="sm" onClick={() => setIsAssignModalOpen(true)} className="h-8 gap-1.5">
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => {
+            setAssignmentDeadline(getPresetDateTimeLocal(48, activeTimeZone));
+            setIsAssignModalOpen(true);
+          }}
+          className="h-8 gap-1.5"
+        >
           <PlusIcon className="h-3.5 w-3.5" />
           Create assignment
         </Button>
@@ -196,9 +250,12 @@ export function AdminAssignmentsPage() {
               No task assignments created yet. Click "Create Work Assignment" above.
             </div>
           ) : (
-            assignments?.map((a: any) => (
-              <div key={a.id} className="p-4 flex items-center justify-between hover:bg-zinc-800/30 transition-colors">
-                <div className="space-y-1">
+            assignments?.map((a: any) => {
+              const urgency = getDeadlineUrgency(a.deadline, a.status);
+              const styles = getUrgencyStyles(urgency);
+              return (
+              <div key={a.id} className="p-4 flex items-center justify-between gap-4 hover:bg-zinc-800/30 transition-colors">
+                <div className="space-y-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-sm text-zinc-100">{a.mangaId?.title || 'Series'}</span>
                     <span className="text-xs text-zinc-400 font-mono">Ch. {a.chapterId?.chapterNumber}</span>
@@ -221,8 +278,40 @@ export function AdminAssignmentsPage() {
                     Assigned worker: <strong className="text-zinc-300">{a.assignedWorkerName || 'None (Open for Claim)'}</strong>
                   </div>
                 </div>
+
+                <div className="flex items-center gap-2.5 shrink-0">
+                  {a.deadline ? (
+                    <span
+                      className={`px-2 py-0.5 rounded border text-[10px] font-mono tabular-nums flex items-center gap-1.5 ${styles.badge}`}
+                      title={formatInUserTimeZone(a.deadline, activeTimeZone, 'full')}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${styles.dot}`} />
+                      <CalendarIcon className="h-3 w-3 shrink-0 opacity-85" />
+                      {formatDeadlineCountdown(a.deadline, a.status, activeTimeZone)}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-mono text-zinc-600 inline-flex items-center gap-1">
+                      <CalendarIcon className="h-3 w-3 opacity-60" />
+                      No deadline
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingDeadlineItem(a);
+                      setEditDeadlineInput(
+                        toDateTimeLocalValue(a.deadline, activeTimeZone) || getPresetDateTimeLocal(48, activeTimeZone)
+                      );
+                    }}
+                    className="p-1.5 rounded-md border border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                    title="Edit deadline"
+                  >
+                    <CalendarIcon className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
@@ -285,34 +374,204 @@ export function AdminAssignmentsPage() {
             </p>
           </div>
 
-          {/* Work Type Selection */}
+          {/* Work Type / Role Multi-Selection */}
           <div>
-            <label className="block text-zinc-300 font-medium mb-1">Work Type</label>
-            <select
-              value={selectedWorkTypeId}
-              onChange={(e) => setSelectedWorkTypeId(e.target.value)}
-              className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-indigo-500"
-              required
-            >
-              <option value="">Select Production Type</option>
-              {workTypes?.map((wt) => (
-                <option key={wt.id} value={wt.id}>
-                  {wt.name} ({wt.code})
-                </option>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-zinc-300 font-medium">
+                Roles / Work Types
+                {selectedWorkTypeIds.length > 0 && (
+                  <span className="ml-1.5 text-[10px] font-mono text-zinc-400">
+                    ({selectedWorkTypeIds.length} selected)
+                  </span>
+                )}
+              </label>
+              {workTypes && workTypes.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allIds = workTypes.map((wt: any) => wt.id);
+                    const allSelected = allIds.every((id: string) => selectedWorkTypeIds.includes(id));
+                    setSelectedWorkTypeIds(allSelected ? [] : allIds);
+                  }}
+                  className={`px-2 py-0.5 rounded border text-[10px] font-mono transition-colors ${
+                    workTypes.length > 0 && selectedWorkTypeIds.length === workTypes.length
+                      ? 'border-zinc-500 bg-zinc-800 text-zinc-100'
+                      : 'border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300'
+                  }`}
+                >
+                  {selectedWorkTypeIds.length === workTypes.length ? 'Clear All' : `All Roles (${workTypes.length})`}
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto p-1.5 rounded-lg border border-zinc-800 bg-zinc-950/70">
+              {workTypes?.map((wt: any) => {
+                const isSelected = selectedWorkTypeIds.includes(wt.id);
+                return (
+                  <button
+                    key={wt.id}
+                    type="button"
+                    onClick={() =>
+                      setSelectedWorkTypeIds((prev) =>
+                        prev.includes(wt.id) ? prev.filter((id) => id !== wt.id) : [...prev, wt.id]
+                      )
+                    }
+                    className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md border text-left transition-colors ${
+                      isSelected
+                        ? 'border-zinc-600 bg-zinc-800/90 text-zinc-100'
+                        : 'border-zinc-800/80 bg-[#111215] text-zinc-400 hover:text-zinc-200 hover:border-zinc-700'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: wt.color || '#6366f1' }}
+                      />
+                      <span className="truncate font-medium">{wt.name}</span>
+                      <span className="text-[10px] font-mono text-zinc-500 shrink-0">{wt.code}</span>
+                    </span>
+                    {isSelected && <Check className="h-3 w-3 text-zinc-100 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedWorkTypeIds.length === 0 && (
+              <p className="text-[10px] text-zinc-500 mt-1">
+                Pick one, multiple, or All Roles to dispatch together.
+              </p>
+            )}
+          </div>
+
+          {/* Deadline Selection */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="flex items-center gap-1.5 text-zinc-300 font-medium">
+                <CalendarIcon className="h-3.5 w-3.5 text-zinc-400" />
+                Deadline
+              </label>
+              <span className="text-[10px] font-mono text-zinc-500">{getTimeZoneShortLabel(activeTimeZone)}</span>
+            </div>
+            <DeadlineDatePicker
+              timeZone={activeTimeZone}
+              showPresets={false}
+              value={assignmentDeadline}
+              onChange={setAssignmentDeadline}
+            />
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {[
+                { label: '+24h', hours: 24 },
+                { label: '+48h', hours: 48 },
+                { label: '+3d', hours: 72 },
+                { label: '+1w', hours: 168 },
+              ].map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => setAssignmentDeadline(getPresetDateTimeLocal(p.hours, activeTimeZone))}
+                  className="px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-[10px] font-mono text-zinc-300 transition-colors"
+                >
+                  {p.label}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-zinc-800">
             <Button type="button" variant="secondary" size="sm" onClick={() => setIsAssignModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" size="sm" isLoading={createAssignmentMutation.isPending}>
-              Create Assignment
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              isLoading={createAssignmentMutation.isPending}
+              disabled={!selectedMangaId || !chapterNumber.trim() || selectedWorkTypeIds.length === 0}
+            >
+              {selectedWorkTypeIds.length > 1 ? `Create ${selectedWorkTypeIds.length} Assignments` : 'Create Assignment'}
             </Button>
           </div>
         </form>
       </Modal>
+
+      {/* Edit Deadline Modal */}
+      {editingDeadlineItem && (
+        <Modal
+          isOpen={!!editingDeadlineItem}
+          onClose={() => setEditingDeadlineItem(null)}
+          title="Update Assignment Deadline"
+          description={`${editingDeadlineItem.mangaId?.title || 'Series'} Ch. ${editingDeadlineItem.chapterId?.chapterNumber || '?'} • ${editingDeadlineItem.workType?.name || 'Task'}`}
+        >
+          <div className="space-y-4 text-xs">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="flex items-center gap-1.5 text-zinc-300 font-medium">
+                  <CalendarIcon className="h-3.5 w-3.5 text-zinc-400" />
+                  Due Date & Time
+                </label>
+                <span className="text-[10px] font-mono text-zinc-500">{getTimeZoneShortLabel(activeTimeZone)}</span>
+              </div>
+              <DeadlineDatePicker
+                timeZone={activeTimeZone}
+                showPresets={false}
+                value={editDeadlineInput}
+                onChange={setEditDeadlineInput}
+              />
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {[
+                  { label: '+24h', hours: 24 },
+                  { label: '+48h', hours: 48 },
+                  { label: '+3 days', hours: 72 },
+                  { label: '+1 week', hours: 168 },
+                ].map((p) => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => setEditDeadlineInput(getPresetDateTimeLocal(p.hours, activeTimeZone))}
+                    className="px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-[10px] font-mono text-zinc-300 transition-colors"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-zinc-800">
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                onClick={() =>
+                  updateDeadlineMutation.mutate({
+                    assignmentId: editingDeadlineItem.id,
+                    deadline: null,
+                  })
+                }
+                disabled={updateDeadlineMutation.isPending}
+              >
+                Clear Deadline
+              </Button>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="secondary" size="sm" onClick={() => setEditingDeadlineItem(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  isLoading={updateDeadlineMutation.isPending}
+                  onClick={() =>
+                    updateDeadlineMutation.mutate({
+                      assignmentId: editingDeadlineItem.id,
+                      deadline: editDeadlineInput || null,
+                    })
+                  }
+                >
+                  Save Deadline
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

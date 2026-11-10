@@ -43,9 +43,19 @@ export async function pipelineRoutes(fastify: FastifyInstance) {
       .lean();
 
     const pipelineData = chapters.map((ch: any) => {
-      const chAssignments = assignments.filter(
-        (a: any) => a.chapterId.toString() === ch._id.toString()
-      );
+      const seenRoleIds = new Set<string>();
+      const chAssignments: any[] = [];
+      for (const a of assignments as any[]) {
+        if (a.chapterId.toString() !== ch._id.toString()) continue;
+        if (!a.workTypeId) continue;
+        if (/^upload(ing|er)?$/i.test(a.workTypeId?.name || '') || ['UP', 'UPL', 'UPLOAD'].includes((a.workTypeId?.code || '').toUpperCase())) {
+          continue;
+        }
+        const wtKey = a.workTypeId?._id?.toString() || a.workTypeId?.toString();
+        if (seenRoleIds.has(wtKey)) continue;
+        seenRoleIds.add(wtKey);
+        chAssignments.push(a);
+      }
 
       return {
         chapterId: ch._id.toString(),
@@ -56,6 +66,9 @@ export async function pipelineRoutes(fastify: FastifyInstance) {
         mangaCoverUrl: ch.mangaId?.coverUrl,
         priority: ch.priority,
         status: ch.status,
+        deadline: ch.deadline,
+        releaseDate: ch.releaseDate,
+        completedAt: ch.completedAt,
         stages: chAssignments.map((a: any) => {
           const stageDeliverables = deliverables.filter(
             (d: any) => d.assignmentId.toString() === a._id.toString()

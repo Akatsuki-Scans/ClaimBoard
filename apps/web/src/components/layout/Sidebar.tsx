@@ -16,11 +16,13 @@ import {
   DiscordIcon,
   HashIcon,
   CloseIcon,
+  CalendarIcon,
 } from '../ui/icon';
 import { useAuthStore } from '../../stores/authStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '../../lib/api';
+import { getBrowserTimeZone, getZonedDayBoundsIso } from '../../lib/deadlines';
 import { cn } from '@claimboard/ui';
 import { UserAvatar } from '../ui/Avatar';
 
@@ -52,11 +54,33 @@ export function Sidebar() {
 
   const pendingApprovalsCount = teamData?.stats?.pending || 0;
 
+  const { data: tzData } = useQuery<{ timezone: string | null }>({
+    queryKey: ['deadlines', 'timezone'],
+    queryFn: () => apiRequest<{ timezone: string | null }>('/deadlines/timezone').catch(() => ({ timezone: null })),
+  });
+  const activeTimeZone = tzData?.timezone || getBrowserTimeZone();
+
+  const { data: deadlineStats } = useQuery<{ summary?: { overdue?: number; dueToday?: number } }>({
+    queryKey: ['deadlines', 'sidebar-summary', activeTimeZone],
+    queryFn: () => {
+      const { startIso, endIso } = getZonedDayBoundsIso(new Date(), activeTimeZone);
+      const params = new URLSearchParams({ todayStart: startIso, todayEnd: endIso });
+      return apiRequest<{ summary?: { overdue?: number; dueToday?: number } }>(
+        `/deadlines?${params.toString()}`
+      ).catch(() => ({}));
+    },
+    refetchInterval: 60000,
+  });
+
+  const urgentDeadlinesCount =
+    (deadlineStats?.summary?.overdue || 0) + (deadlineStats?.summary?.dueToday || 0);
+
   const navLinks = [
     { label: 'Dashboard', to: '/dashboard', icon: HomeIcon },
     { label: 'Open Work', to: '/open-work', icon: OpenWorkIcon },
     { label: 'My Claims', to: '/my-claims', icon: MyClaimsIcon, badge: activeClaimsCount > 0 ? activeClaimsCount : undefined },
     { label: 'Pipeline', to: '/pipeline', icon: PipelineIcon },
+    { label: 'Calendar', to: '/calendar', icon: CalendarIcon, badge: urgentDeadlinesCount > 0 ? urgentDeadlinesCount : undefined },
     { label: 'Manga', to: '/manga', icon: MangaIcon },
     { label: 'History', to: '/history', icon: HistoryIcon },
     { label: 'Team', to: '/team', icon: TeamIcon },

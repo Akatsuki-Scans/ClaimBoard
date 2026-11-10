@@ -20,9 +20,10 @@ for (let i = 0; i < 5; i++) {
 
 import { SapphireClient } from '@sapphire/framework';
 import { GatewayIntentBits, ActivityType, Partials } from 'discord.js';
-import { connectDatabase } from '@claimboard/database';
+import { connectDatabase, setProductionLogHook, DiscordLogChannelModel } from '@claimboard/database';
 import { moduleManager } from './core/moduleManager';
 import { CommandRouter } from './core/commandRouter';
+import { BotLogger } from './core/botLogger';
 import { installedModules } from './modules';
 
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
@@ -89,6 +90,35 @@ export async function setupSapphireBot() {
     moduleManager.registerModule(mod);
   }
 
+  // Register unified ProductionService -> Discord Log Channel hook (captures Web UI + Bot completions)
+  setProductionLogHook(async (event) => {
+    if (!client.isReady()) return;
+    const p: any = event.payload || {};
+    switch (event.type) {
+      case 'TASK_CLAIMED':
+        await BotLogger.taskClaimed({ client, guildId: event.guildId, ...p });
+        break;
+      case 'TASK_UNCLAIMED':
+        await BotLogger.taskUnclaimed({ client, guildId: event.guildId, ...p });
+        break;
+      case 'TASK_SUBMITTED':
+        await BotLogger.taskSubmitted({ client, guildId: event.guildId, ...p });
+        break;
+      case 'TASK_COMPLETED':
+        await BotLogger.taskCompleted({ client, guildId: event.guildId, ...p });
+        break;
+      case 'CHAPTER_COMPLETED':
+        await BotLogger.chapterCompleted({ client, guildId: event.guildId, ...p });
+        break;
+      case 'TASK_CHANGES_REQUESTED':
+        await BotLogger.taskChangesRequested({ client, guildId: event.guildId, ...p });
+        break;
+      case 'DEADLINE_UPDATED':
+        await BotLogger.deadlineUpdated({ client, guildId: event.guildId, ...p });
+        break;
+    }
+  });
+
   const allCmds = moduleManager.getAllCommands();
   console.log(`[ModularBot] Loaded ${moduleManager.getAllModules().length} modules with ${allCmds.length} total commands.`);
 
@@ -114,6 +144,9 @@ export async function setupSapphireBot() {
   client.on('channelDelete', async (channel) => {
     const { handleChannelDelete } = await import('./modules/honeypot');
     await handleChannelDelete(channel as any);
+    if ('guildId' in channel && channel.guildId) {
+      await DiscordLogChannelModel.deleteMany({ guildId: channel.guildId, channelId: channel.id }).catch(() => null);
+    }
   });
 
   // Handle guild deletions / bot removed from guild
