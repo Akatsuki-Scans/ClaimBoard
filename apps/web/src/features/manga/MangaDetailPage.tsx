@@ -56,8 +56,7 @@ export function MangaDetailPage() {
   const [selectedGuildId, setSelectedGuildId] = useState('');
   const [isCreatingRole, setIsCreatingRole] = useState(false);
   const [newRoleInputName, setNewRoleInputName] = useState('');
-  const [newRoleInputColor, setNewRoleInputColor] = useState('#818cf8');
-  const [useManualEntry, setUseManualEntry] = useState(false);
+  const [newRoleInputColor, setNewRoleInputColor] = useState('#5865f2');
 
   // AniList metadata state
   const [anilistData, setAnilistData] = useState<AnilistManga | null>(null);
@@ -129,19 +128,17 @@ export function MangaDetailPage() {
       const targetId = payload?.roleId !== undefined ? payload.roleId : discordRoleId.trim();
       const targetName = payload?.roleName !== undefined ? payload.roleName : discordRoleName.trim();
       const targetGuildId = payload?.guildId !== undefined ? payload.guildId : (selectedGuildId || matchedGuild?.id || null);
-      return apiRequest('/discord/series-role', {
-        method: 'POST',
+      return apiRequest(`/manga/${id}`, {
+        method: 'PUT',
         body: JSON.stringify({
-          mangaId: id,
-          roleId: targetId || null,
-          roleName: targetName || null,
+          discordRoleId: targetId || undefined,
+          discordRoleName: targetName || undefined,
           guildId: targetGuildId,
         }),
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['manga', id] });
-      queryClient.invalidateQueries({ queryKey: ['manga'] });
       setIsDiscordRoleModalOpen(false);
     },
   });
@@ -182,8 +179,8 @@ export function MangaDetailPage() {
   const latestChapterNumber = latestDbChapter
     ? latestDbChapter.chapterNumber
     : anilistData?.chapters
-    ? anilistData.chapters.toString()
-    : 'None yet';
+      ? anilistData.chapters.toString()
+      : 'None yet';
 
   // Automatically suggest next chapter number when modal opens
   useEffect(() => {
@@ -191,8 +188,8 @@ export function MangaDetailPage() {
       const nextNum = latestDbChapter
         ? (parseFloat(latestDbChapter.chapterNumber) || 0) + 1
         : anilistData?.chapters
-        ? anilistData.chapters + 1
-        : 1;
+          ? anilistData.chapters + 1
+          : 1;
       setChapterNumber(nextNum.toString());
       setChapterTitle(`Chapter ${nextNum}`);
     }
@@ -465,62 +462,61 @@ export function MangaDetailPage() {
                   const urgency = getDeadlineUrgency(ch.deadline, ch.status);
                   const styles = getUrgencyStyles(urgency);
                   return (
-                  <tr key={ch.id} className="hover:bg-zinc-800/30 transition-colors">
-                    <td className="py-3.5 px-4 font-mono font-semibold text-zinc-100">
-                      Ch. {ch.chapterNumber}
-                    </td>
-                    <td className="py-3.5 px-4 text-zinc-300 font-medium">
-                      {ch.title || `Chapter ${ch.chapterNumber}`}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                          ch.status === 'Completed'
+                    <tr key={ch.id} className="hover:bg-zinc-800/30 transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-semibold text-zinc-100">
+                        Ch. {ch.chapterNumber}
+                      </td>
+                      <td className="py-3.5 px-4 text-zinc-300 font-medium">
+                        {ch.title || `Chapter ${ch.chapterNumber}`}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${ch.status === 'Completed'
                             ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/50'
                             : 'bg-indigo-950/60 text-indigo-300 border border-indigo-800/50'
-                        }`}
-                      >
-                        ● {ch.status || 'In_Production'}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-zinc-400 font-mono text-[11px]">
-                      <div className="flex items-center gap-2">
-                        {ch.deadline ? (
-                          <span
-                            className={`px-2 py-0.5 rounded border text-[10px] tabular-nums inline-flex items-center gap-1.5 ${styles.badge}`}
-                            title={formatInUserTimeZone(ch.deadline, activeTimeZone, 'full')}
-                          >
-                            <span className={`h-1.5 w-1.5 rounded-full ${styles.dot}`} />
-                            <Calendar className="h-3 w-3 shrink-0 opacity-85" />
-                            {formatDeadlineCountdown(ch.deadline, ch.status, activeTimeZone)}
-                          </span>
-                        ) : (
-                          <span className="text-zinc-600">No deadline</span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingChapterDeadline(ch);
-                            setEditChapterDeadlineVal(
-                              toDateTimeLocalValue(ch.deadline, activeTimeZone) ||
-                                getPresetDateTimeLocal(72, activeTimeZone)
-                            );
-                          }}
-                          className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
-                          title="Set chapter deadline"
+                            }`}
                         >
-                          <Calendar className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <Link to={`/pipeline/${manga.id}/${ch.id || ch._id}`}>
-                        <Button size="sm" variant="outline" className="h-7 text-xs px-2.5">
-                          Pipeline
-                        </Button>
-                      </Link>
-                    </td>
-                  </tr>
+                          ● {ch.status || 'In_Production'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-zinc-400 font-mono text-[11px]">
+                        <div className="flex items-center gap-2">
+                          {ch.deadline ? (
+                            <span
+                              className={`px-2 py-0.5 rounded border text-[10px] tabular-nums inline-flex items-center gap-1.5 ${styles.badge}`}
+                              title={formatInUserTimeZone(ch.deadline, activeTimeZone, 'full')}
+                            >
+                              <span className={`h-1.5 w-1.5 rounded-full ${styles.dot}`} />
+                              <Calendar className="h-3 w-3 shrink-0 opacity-85" />
+                              {formatDeadlineCountdown(ch.deadline, ch.status, activeTimeZone)}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-600">No deadline</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingChapterDeadline(ch);
+                              setEditChapterDeadlineVal(
+                                toDateTimeLocalValue(ch.deadline, activeTimeZone) ||
+                                getPresetDateTimeLocal(72, activeTimeZone)
+                              );
+                            }}
+                            className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+                            title="Set chapter deadline"
+                          >
+                            <Calendar className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <Link to={`/pipeline/${manga.id}/${ch.id || ch._id}`}>
+                          <Button size="sm" variant="outline" className="h-7 text-xs px-2.5">
+                            Pipeline
+                          </Button>
+                        </Link>
+                      </td>
+                    </tr>
                   );
                 })
               )}
@@ -745,7 +741,7 @@ export function MangaDetailPage() {
         >
           <div className="space-y-4 text-xs">
             <p className="text-zinc-400 leading-relaxed">
-              Select or create a Discord role to tag whenever new chapters of <strong className="text-white">{manga?.title}</strong> are announced or assigned in Discord.
+              Configure the Discord role to automatically tag whenever new chapters of <strong className="text-white">{manga?.title}</strong> are assigned using <code className="text-indigo-300 bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-800/40">/assign</code> in your Discord server.
             </p>
 
             {/* Target Discord Guild */}
@@ -779,125 +775,27 @@ export function MangaDetailPage() {
 
             {/* Role Picker from Discord Server Roles */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[11px] font-medium text-zinc-300">
-                  Select Server Role
-                </label>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreatingRole(!isCreatingRole)}
-                    className="text-[11px] text-indigo-400 hover:text-indigo-300 underline font-medium"
-                  >
-                    {isCreatingRole ? 'Hide role creator' : '+ Create new role'}
-                  </button>
-                  <span className="text-zinc-600">•</span>
-                  <button
-                    type="button"
-                    onClick={() => setUseManualEntry(!useManualEntry)}
-                    className="text-[11px] text-zinc-400 hover:text-zinc-300 underline"
-                  >
-                    {useManualEntry ? 'Select from list' : 'Manual ID'}
-                  </button>
-                </div>
-              </div>
-
-              {!useManualEntry ? (
-                <div className="space-y-2">
-                  <select
-                    value={discordRoleId}
-                    onChange={(e) => {
-                      const selectedId = e.target.value;
-                      setDiscordRoleId(selectedId);
-                      const found = serverRoles?.find((r: any) => r.id === selectedId);
-                      if (found) {
-                        setDiscordRoleName(found.name);
-                      }
-                    }}
-                    className="w-full bg-[#18181b] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-indigo-500 font-mono text-xs"
-                  >
-                    <option value="">-- Choose a Discord Role --</option>
-                    {serverRoles?.map((r: any) => (
-                      <option key={r.id} value={r.id}>
-                        @{r.name} ({r.id})
-                      </option>
-                    ))}
-                  </select>
-
-                  {discordRoleId && (
-                    <div className="p-2 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full shrink-0"
-                          style={{
-                            backgroundColor:
-                              serverRoles?.find((r: any) => r.id === discordRoleId)?.hexColor || '#818cf8',
-                          }}
-                        />
-                        <span className="font-semibold text-zinc-100">
-                          @{discordRoleName || discordRoleId}
-                        </span>
-                      </div>
-                      <span className="text-[10px] font-mono text-zinc-500">ID: {discordRoleId}</span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-[10px] text-zinc-400 block mb-0.5">Role Name</label>
-                    <Input
-                      value={discordRoleName}
-                      onChange={(e) => setDiscordRoleName(e.target.value)}
-                      placeholder="e.g. Solo Leveling Team"
-                      className="text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-zinc-400 block mb-0.5">Role ID</label>
-                    <Input
-                      value={discordRoleId}
-                      onChange={(e) => setDiscordRoleId(e.target.value)}
-                      placeholder="e.g. 1446000987742535814"
-                      className="text-xs font-mono"
-                    />
-                  </div>
-                </div>
-              )}
+              <label className="text-[11px] font-medium text-zinc-300 block mb-1">
+                Discord role name (e.g. Solo Leveling Team)
+              </label>
+              <Input
+                value={discordRoleName}
+                onChange={(e) => setDiscordRoleName(e.target.value)}
+                placeholder="e.g. Solo Leveling Team or Translators"
+                className="text-xs"
+              />
             </div>
-
-            {/* Inline Role Creator */}
-            {isCreatingRole && (
-              <div className="p-3 rounded-lg border border-indigo-900/40 bg-indigo-950/20 space-y-2.5">
-                <div className="text-[11px] font-semibold text-indigo-300">Create New Role in Discord</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <Input
-                    value={newRoleInputName}
-                    onChange={(e) => setNewRoleInputName(e.target.value)}
-                    placeholder="New role name (e.g. One Piece Team)"
-                    className="text-xs"
-                  />
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={newRoleInputColor}
-                      onChange={(e) => setNewRoleInputColor(e.target.value)}
-                      className="h-8 w-10 bg-transparent rounded cursor-pointer border border-zinc-700 p-0.5"
-                    />
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      onClick={() => createRoleMutation.mutate()}
-                      isLoading={createRoleMutation.isPending}
-                      className="flex-1 text-xs h-8"
-                    >
-                      Create & Select
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-
+            <div>
+              <label className="text-[11px] font-medium text-zinc-300 block mb-1">
+                Discord role ID (Right click role in Discord ➔ Copy ID)
+              </label>
+              <Input
+                value={discordRoleId}
+                onChange={(e) => setDiscordRoleId(e.target.value)}
+                placeholder="e.g. 1446000987742535814"
+                className="text-xs font-mono"
+              />
+            </div>
             <div className="flex items-center justify-between pt-3 border-t border-zinc-800">
               {manga?.discordRoleId ? (
                 <Button

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
-import { ClaimBoardLogoIcon } from '../../components/ui/icon';
+import { DiscordLogoLottie } from '../../components/ui/LottieEmoji';
 import { Clock, AlertCircle } from 'lucide-react';
 
 export function DiscordIcon({ className = 'h-4 w-4' }: { className?: string }) {
@@ -57,9 +57,7 @@ export function LoginPage() {
       <div className="w-full max-w-sm rounded-xl border border-zinc-800 bg-[#111215] p-6 shadow-2xl">
         {/* Brand Header */}
         <div className="text-center mb-6">
-          <div className="mx-auto mb-3 h-10 w-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-            <ClaimBoardLogoIcon className="h-5 w-5 text-zinc-100" />
-          </div>
+          <DiscordLogoLottie className="h-24 w-24 mx-auto mb-3" />
           <h1 className="text-base font-semibold text-zinc-100 tracking-tight">ClaimBoard Workspace</h1>
           <p className="text-xs text-zinc-400 mt-1">
             Production management for Akatsuki Scans

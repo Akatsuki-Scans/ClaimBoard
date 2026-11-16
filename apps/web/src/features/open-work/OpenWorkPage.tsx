@@ -13,13 +13,13 @@ import {
   FilterIcon,
   CalendarIcon,
 } from '../../components/ui/icon';
+import { CryLottie, HeadNodLottie } from '../../components/ui/LottieEmoji';
 import {
   Lock,
   List as ListIcon,
   LayoutGrid,
   Layers,
   Clock,
-  Sparkles,
   ChevronRight,
   ChevronDown,
   Check,
@@ -61,6 +61,7 @@ export function OpenWorkPage() {
   // Claim modal state
   const [claimingAssignment, setClaimingAssignment] = useState<any | null>(null);
   const [claimError, setClaimError] = useState<string | null>(null);
+  const [claimSuccessTask, setClaimSuccessTask] = useState<any | null>(null);
 
   // Queries from API
   const { data: assignments, isLoading } = useQuery({
@@ -155,6 +156,14 @@ export function OpenWorkPage() {
       queryClient.invalidateQueries({ queryKey: ['assignments'] });
       queryClient.invalidateQueries({ queryKey: ['claims'] });
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
+      if (claimingAssignment) {
+        setClaimSuccessTask({
+          title: getMangaTitle(claimingAssignment),
+          chapter: getChapterNumber(claimingAssignment),
+          workType: getWorkTypeName(claimingAssignment),
+          color: getWorkTypeColor(claimingAssignment),
+        });
+      }
       setClaimingAssignment(null);
     },
     onError: (err: ApiError) => {
@@ -708,7 +717,7 @@ export function OpenWorkPage() {
                         onClick={() => handleOpenClaimModal(task)}
                         className="h-8 px-4 text-xs font-medium gap-1.5"
                       >
-                        <Sparkles className="h-3.5 w-3.5" />
+                        <CryLottie className="h-4 w-4 shrink-0" />
                         Claim Task
                       </Button>
                     ) : task.isBlocked ? (
@@ -822,8 +831,9 @@ export function OpenWorkPage() {
                             size="sm"
                             variant="primary"
                             onClick={() => handleOpenClaimModal(task)}
-                            className="h-7 text-xs px-2.5"
+                            className="h-7 text-xs px-2.5 flex items-center gap-1.5"
                           >
+                            <CryLottie className="h-3.5 w-3.5 shrink-0" />
                             Claim
                           </Button>
                         ) : null}
@@ -925,8 +935,9 @@ export function OpenWorkPage() {
                         size="sm"
                         variant="primary"
                         onClick={() => handleOpenClaimModal(task)}
-                        className="h-7 text-xs px-3"
+                        className="h-7 text-xs px-3 flex items-center gap-1.5"
                       >
+                        <CryLottie className="h-3.5 w-3.5 shrink-0" />
                         Claim Slot
                       </Button>
                     ) : (
@@ -1008,10 +1019,65 @@ export function OpenWorkPage() {
                   }
                 }}
                 isLoading={claimMutation.isPending}
+                className="gap-1.5"
               >
+                <CryLottie className="h-4 w-4 shrink-0" />
                 Confirm Claim
               </Button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Thank You for Claiming Task Modal (Animated Head Nod Lottie) */}
+      {claimSuccessTask && (
+        <Modal
+          isOpen={true}
+          onClose={() => setClaimSuccessTask(null)}
+          title=""
+          className="max-w-md text-center p-6 bg-[#111215] border-zinc-800"
+        >
+          <div className="flex flex-col items-center justify-center py-2 space-y-4">
+            <div>
+              <HeadNodLottie className="h-28 w-28 mx-auto" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h2 className="text-lg font-bold text-zinc-100 tracking-tight">
+                Thank You for Claiming This Task!
+              </h2>
+              <p className="text-xs text-zinc-400 max-w-xs mx-auto leading-relaxed">
+                You've successfully claimed{' '}
+                <span className="font-semibold text-zinc-200">{claimSuccessTask.title}</span> Ch.{' '}
+                <span className="font-mono text-zinc-200">{claimSuccessTask.chapter}</span> (
+                <span style={{ color: claimSuccessTask.color }} className="font-medium">
+                  {claimSuccessTask.workType}
+                </span>
+                ).
+              </p>
+            </div>
+
+            <div className="w-full p-3 rounded-lg bg-zinc-900/80 border border-zinc-800 text-left text-xs space-y-1.5 font-mono">
+              <div className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                Next Steps
+              </div>
+              <div className="text-zinc-300 text-[11px]">
+                • Check your series channel on Discord for materials & updates.
+              </div>
+              <div className="text-zinc-300 text-[11px]">
+                • When completed, upload your deliverable directly in My Work.
+              </div>
+            </div>
+
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => setClaimSuccessTask(null)}
+              className="w-full h-9 font-medium text-xs mt-2"
+            >
+              Let's Do This!
+            </Button>
           </div>
         </Modal>
       )}
