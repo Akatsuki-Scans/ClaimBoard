@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/Button';
 import { Input, Textarea } from '../../components/ui/Input';
 import { DeadlineDatePicker } from '../../components/application/date-picker/DatePicker';
 import { Modal } from '../../components/ui/Modal';
+import { DiscordIcon } from '../../components/ui/icon';
 import {
   BookOpen,
   Plus,
@@ -52,6 +53,7 @@ export function MangaDetailPage() {
   const [isDiscordRoleModalOpen, setIsDiscordRoleModalOpen] = useState(false);
   const [discordRoleId, setDiscordRoleId] = useState('');
   const [discordRoleName, setDiscordRoleName] = useState('');
+  const [selectedGuildId, setSelectedGuildId] = useState('');
   const [isCreatingRole, setIsCreatingRole] = useState(false);
   const [newRoleInputName, setNewRoleInputName] = useState('');
   const [newRoleInputColor, setNewRoleInputColor] = useState('#818cf8');
@@ -77,10 +79,27 @@ export function MangaDetailPage() {
     queryFn: () => (id ? apiRequest<any[]>(`/chapters?mangaId=${id}`) : []),
   });
 
+  const { data: guilds } = useQuery({
+    queryKey: ['discord', 'guilds'],
+    queryFn: () => apiRequest<any[]>('/discord/guilds').catch(() => []),
+  });
+
+  const { data: discordChannels } = useQuery({
+    queryKey: ['discord', 'channels'],
+    queryFn: () => apiRequest<any[]>('/discord/channels').catch(() => []),
+  });
+
   const { data: serverRoles, isLoading: isServerRolesLoading } = useQuery({
     queryKey: ['discord', 'server-roles'],
     queryFn: () => apiRequest<any[]>('/discord/server-roles').catch(() => []),
   });
+
+  const matchedGuild =
+    guilds?.find((g: any) => g.id === (selectedGuildId || manga?.discordGuildId)) ||
+    guilds?.find((g: any) => g.id === discordChannels?.find((c: any) => c.mangaId === id)?.guildId) ||
+    guilds?.[0];
+
+  const mappedChannel = discordChannels?.find((c: any) => c.mangaId === id);
 
   // Create Discord Role Mutation
   const createRoleMutation = useMutation({
@@ -91,6 +110,7 @@ export function MangaDetailPage() {
         body: JSON.stringify({
           name: newRoleInputName.trim(),
           color: newRoleInputColor,
+          guildId: selectedGuildId || matchedGuild?.id,
         }),
       });
     },
@@ -105,15 +125,17 @@ export function MangaDetailPage() {
 
   // Update Discord Role Mutation
   const updateDiscordRoleMutation = useMutation({
-    mutationFn: async (payload?: { roleId?: string; roleName?: string }) => {
+    mutationFn: async (payload?: { roleId?: string; roleName?: string; guildId?: string }) => {
       const targetId = payload?.roleId !== undefined ? payload.roleId : discordRoleId.trim();
       const targetName = payload?.roleName !== undefined ? payload.roleName : discordRoleName.trim();
+      const targetGuildId = payload?.guildId !== undefined ? payload.guildId : (selectedGuildId || matchedGuild?.id || null);
       return apiRequest('/discord/series-role', {
         method: 'POST',
         body: JSON.stringify({
           mangaId: id,
           roleId: targetId || null,
           roleName: targetName || null,
+          guildId: targetGuildId,
         }),
       });
     },
@@ -293,30 +315,53 @@ export function MangaDetailPage() {
               </span>
             </div>
 
-            {/* Discord Role Tagging Configuration */}
-            <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
-              <span className="text-zinc-400 flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-full bg-[#5865F2]" />
-                Discord Ping Role:
-              </span>
-              {manga.discordRoleId ? (
-                <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[#5865F2]/20 border border-[#5865F2]/40 text-[#7983f5] font-semibold flex items-center gap-1">
-                  @{manga.discordRoleName || manga.discordRoleId}
+            {/* Discord Server & Role Tagging Configuration */}
+            <div className="flex flex-wrap items-center gap-2.5 pt-1 text-xs">
+              {/* Guild Server Info with PFP */}
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-900/90 border border-zinc-800">
+                <div className="h-4 w-4 rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0 border border-zinc-700/60">
+                  {matchedGuild?.icon ? (
+                    <img src={matchedGuild.icon} alt={matchedGuild.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <DiscordIcon className="h-3 w-3 text-[#5865F2]" />
+                  )}
+                </div>
+                <span className="text-[11px] font-semibold text-zinc-200">
+                  {matchedGuild?.name || 'Discord Server'}
                 </span>
-              ) : (
-                <span className="text-zinc-500 italic text-[11px]">No role tagged</span>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  setDiscordRoleId(manga.discordRoleId || '');
-                  setDiscordRoleName(manga.discordRoleName || '');
-                  setIsDiscordRoleModalOpen(true);
-                }}
-                className="text-[11px] text-[#5865F2] hover:text-[#7983f5] underline ml-1 font-medium cursor-pointer"
-              >
-                {manga.discordRoleId ? 'Change' : '+ Configure Discord Role'}
-              </button>
+                {mappedChannel && (
+                  <span className="font-mono text-[10px] text-zinc-400 bg-zinc-800/80 px-1.5 py-0.2 rounded border border-zinc-700/60 ml-0.5">
+                    #{mappedChannel.channelName}
+                  </span>
+                )}
+              </div>
+
+              {/* Discord Role Tag */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-zinc-400 text-[11px] flex items-center gap-1">
+                  <span className="inline-block h-2 w-2 rounded-full bg-[#5865F2]" />
+                  Role:
+                </span>
+                {manga.discordRoleId ? (
+                  <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[#5865F2]/20 border border-[#5865F2]/40 text-[#7983f5] font-semibold flex items-center gap-1">
+                    @{manga.discordRoleName || manga.discordRoleId}
+                  </span>
+                ) : (
+                  <span className="text-zinc-500 italic text-[11px]">No role tagged</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDiscordRoleId(manga.discordRoleId || '');
+                    setDiscordRoleName(manga.discordRoleName || '');
+                    setSelectedGuildId(manga.discordGuildId || matchedGuild?.id || '');
+                    setIsDiscordRoleModalOpen(true);
+                  }}
+                  className="text-[11px] text-[#5865F2] hover:text-[#7983f5] underline ml-1 font-medium cursor-pointer"
+                >
+                  {manga.discordRoleId ? 'Change' : '+ Configure Discord'}
+                </button>
+              </div>
             </div>
 
             {/* Synopsis */}
@@ -702,6 +747,35 @@ export function MangaDetailPage() {
             <p className="text-zinc-400 leading-relaxed">
               Select or create a Discord role to tag whenever new chapters of <strong className="text-white">{manga?.title}</strong> are announced or assigned in Discord.
             </p>
+
+            {/* Target Discord Guild */}
+            {guilds && guilds.length > 0 && (
+              <div>
+                <label className="text-[11px] font-medium text-zinc-300 block mb-1">
+                  Discord Server
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0 border border-zinc-700/80">
+                    {matchedGuild?.icon ? (
+                      <img src={matchedGuild.icon} alt={matchedGuild.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <DiscordIcon className="h-3.5 w-3.5 text-[#5865F2]" />
+                    )}
+                  </div>
+                  <select
+                    value={selectedGuildId || matchedGuild?.id || ''}
+                    onChange={(e) => setSelectedGuildId(e.target.value)}
+                    className="w-full bg-[#18181b] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-indigo-500 text-xs"
+                  >
+                    {guilds.map((g: any) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
 
             {/* Role Picker from Discord Server Roles */}
             <div>

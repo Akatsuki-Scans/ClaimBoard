@@ -24,7 +24,6 @@ import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '../../lib/api';
 import { getBrowserTimeZone, getZonedDayBoundsIso } from '../../lib/deadlines';
 import { cn } from '@claimboard/ui';
-import { UserAvatar } from '../ui/Avatar';
 
 export function Sidebar() {
   const { user } = useAuthStore();
@@ -230,19 +229,6 @@ export function Sidebar() {
           )}
         </nav>
       </div>
-
-      {/* User Footer */}
-      {user && (
-        <div className="p-3 border-t border-zinc-800/80 bg-[#090a0b]/80">
-          <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg bg-zinc-900/50 border border-zinc-800/60">
-            <UserAvatar src={user.avatarUrl} name={user.displayName} size="sm" />
-            <div className="min-w-0 flex-1">
-              <div className="text-xs font-medium text-zinc-200 truncate leading-tight">{user.displayName}</div>
-              <div className="text-[10px] text-zinc-500 font-mono truncate">{user.role}</div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 

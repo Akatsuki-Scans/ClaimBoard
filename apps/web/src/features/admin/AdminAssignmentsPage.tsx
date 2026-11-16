@@ -10,7 +10,6 @@ import { DeadlineDatePicker } from '../../components/application/date-picker/Dat
 import { Modal } from '../../components/ui/Modal';
 import {
   OpenWorkIcon,
-  UserCheckIcon,
   PlusIcon,
   ClockIcon,
   AlertTriangleIcon,
@@ -111,12 +110,6 @@ export function AdminAssignmentsPage() {
     };
   }, [selectedMangaId, mangas]);
 
-  // Smart suggestions
-  const { data: suggestions } = useQuery({
-    queryKey: ['smart-suggestions', selectedWorkTypeIds.join(',')],
-    queryFn: () => apiRequest<any[]>('/analytics/smart-suggestions'),
-  });
-
   const createAssignmentMutation = useMutation({
     mutationFn: async () => {
       if (selectedWorkTypeIds.length === 0) {
@@ -203,10 +196,10 @@ export function AdminAssignmentsPage() {
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-zinc-100 flex items-center gap-2">
             <OpenWorkIcon className="h-4 w-4 text-zinc-400" />
-            Task assignments & allocations
+            Task assignments
           </h2>
           <p className="text-xs text-zinc-400 mt-0.5">
-            Create production slots, specify chapter numbers, and apply automated pipeline templates
+            Create production slots, specify chapter numbers, and manage assignments
           </p>
         </div>
 
@@ -222,36 +215,6 @@ export function AdminAssignmentsPage() {
           <PlusIcon className="h-3.5 w-3.5" />
           Create assignment
         </Button>
-      </div>
-
-      {/* Worker Allocation Suggestions */}
-      <div className="rounded-lg border border-zinc-800 bg-[#111215] p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
-            <UserCheckIcon className="h-4 w-4 text-zinc-400" />
-            Worker Allocation Recommendations
-          </div>
-          <span className="text-[10px] text-zinc-500 font-mono">Live workload balancing</span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {suggestions?.slice(0, 3).map((sug: any) => (
-            <div
-              key={sug.workerId}
-              className="p-3 rounded-md border border-zinc-800 bg-zinc-950/60 flex items-center justify-between"
-            >
-              <div className="space-y-0.5">
-                <div className="text-xs font-medium text-zinc-200">{sug.workerName}</div>
-                <div className="text-[11px] text-zinc-400">
-                  {sug.reason} • Active: {sug.currentLoad}
-                </div>
-              </div>
-              <span className="text-[10px] text-emerald-400 font-mono font-semibold">
-                Score: {sug.matchScore}%
-              </span>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Assignments List */}
