@@ -107,8 +107,18 @@ export async function assignmentRoutes(fastify: FastifyInstance) {
     const deduped = filterUniqueValidAssignments(assignments as any[]).map(({ a, chIdStr, wtIdStr }) => ({
       ...a,
       id: a._id.toString(),
-      mangaId: a.mangaId?._id ? a.mangaId._id.toString() : a.mangaId?.toString(),
-      chapterId: chIdStr,
+      mangaId: a.mangaId && typeof a.mangaId === 'object' && a.mangaId._id ? {
+        _id: a.mangaId._id.toString(),
+        id: a.mangaId._id.toString(),
+        title: a.mangaId.title,
+        coverUrl: a.mangaId.coverUrl,
+      } : (a.mangaId?._id ? a.mangaId._id.toString() : a.mangaId?.toString()),
+      chapterId: a.chapterId && typeof a.chapterId === 'object' && a.chapterId._id ? {
+        _id: a.chapterId._id.toString(),
+        id: a.chapterId._id.toString(),
+        chapterNumber: a.chapterId.chapterNumber,
+        title: a.chapterId.title,
+      } : chIdStr,
       workTypeId: wtIdStr,
       manga: a.mangaId && typeof a.mangaId === 'object' ? {
         id: a.mangaId._id?.toString(),
@@ -248,6 +258,27 @@ export async function assignmentRoutes(fastify: FastifyInstance) {
         actorName: context.user.displayName,
       });
       return reply.send({ success: true, data: assignment });
+    } catch (err: any) {
+      return reply.status(err.code === API_ERROR_CODES.ASSIGNMENT_NOT_FOUND ? 404 : 400).send({
+        success: false,
+        error: { code: err.code || API_ERROR_CODES.INTERNAL_SERVER_ERROR, message: err.message },
+      });
+    }
+  });
+
+  // Delete Assignment
+  fastify.delete('/:id', async (request, reply) => {
+    const context = await request.requirePermission('assignments.edit');
+    const { id } = request.params as any;
+
+    try {
+      const result = await ProductionService.deleteAssignment({
+        organizationId: context.organizationId,
+        assignmentId: id,
+        actorId: context.user.id,
+        actorName: context.user.displayName,
+      });
+      return reply.send({ success: true, data: result });
     } catch (err: any) {
       return reply.status(err.code === API_ERROR_CODES.ASSIGNMENT_NOT_FOUND ? 404 : 400).send({
         success: false,

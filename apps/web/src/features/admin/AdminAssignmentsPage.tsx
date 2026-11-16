@@ -17,7 +17,7 @@ import {
   LayersIcon,
   CalendarIcon,
 } from '../../components/ui/icon';
-import { Check, Lock } from 'lucide-react';
+import { Check, Lock, Trash2 } from 'lucide-react';
 import {
   formatDeadlineCountdown,
   formatInUserTimeZone,
@@ -40,6 +40,7 @@ export function AdminAssignmentsPage() {
   const [assignmentDeadline, setAssignmentDeadline] = useState(() => getPresetDateTimeLocal(48, getBrowserTimeZone()));
   const [editingDeadlineItem, setEditingDeadlineItem] = useState<any | null>(null);
   const [editDeadlineInput, setEditDeadlineInput] = useState('');
+  const [assignmentToDelete, setAssignmentToDelete] = useState<any | null>(null);
   const [anilistLatestChapter, setAnilistLatestChapter] = useState<number | null>(null);
   const [isFetchingAnilist, setIsFetchingAnilist] = useState(false);
 
@@ -180,6 +181,19 @@ export function AdminAssignmentsPage() {
     },
   });
 
+  const deleteAssignmentMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest(`/assignments/${id}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['deadlines'] });
+      queryClient.invalidateQueries({ queryKey: ['pipeline'] });
+      queryClient.invalidateQueries({ queryKey: ['chapters'] });
+      setAssignmentToDelete(null);
+    },
+  });
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto text-zinc-100 select-none pb-12">
       {/* Top Admin Sub-Navigation Tabs */}
@@ -253,12 +267,22 @@ export function AdminAssignmentsPage() {
             assignments?.map((a: any) => {
               const urgency = getDeadlineUrgency(a.deadline, a.status);
               const styles = getUrgencyStyles(urgency);
+              const seriesTitle =
+                a.manga?.title ||
+                a.mangaTitle ||
+                (typeof a.mangaId === 'object' ? a.mangaId?.title : null) ||
+                'Unknown Series';
+              const chapterNum =
+                a.chapter?.chapterNumber ||
+                a.chapterNumber ||
+                (typeof a.chapterId === 'object' ? a.chapterId?.chapterNumber : null) ||
+                (a.chapterId && typeof a.chapterId === 'string' ? a.chapterId : '?');
               return (
               <div key={a.id} className="p-4 flex items-center justify-between gap-4 hover:bg-zinc-800/30 transition-colors">
                 <div className="space-y-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-sm text-zinc-100">{a.mangaId?.title || 'Series'}</span>
-                    <span className="text-xs text-zinc-400 font-mono">Ch. {a.chapterId?.chapterNumber}</span>
+                    <span className="font-semibold text-sm text-zinc-100">{seriesTitle}</span>
+                    <span className="text-xs text-zinc-400 font-mono">Ch. {chapterNum}</span>
                     <span
                       className="px-1.5 py-0.5 rounded text-[11px] font-mono font-medium"
                       style={{ backgroundColor: `${a.workType?.color}20`, color: a.workType?.color }}
@@ -279,35 +303,55 @@ export function AdminAssignmentsPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2.5 shrink-0">
+                <div className="flex items-center gap-3 shrink-0">
                   {a.deadline ? (
-                    <span
-                      className={`px-2 py-0.5 rounded border text-[10px] font-mono tabular-nums flex items-center gap-1.5 ${styles.badge}`}
-                      title={formatInUserTimeZone(a.deadline, activeTimeZone, 'full')}
-                    >
-                      <span className={`h-1.5 w-1.5 rounded-full ${styles.dot}`} />
-                      <CalendarIcon className="h-3 w-3 shrink-0 opacity-85" />
-                      {formatDeadlineCountdown(a.deadline, a.status, activeTimeZone)}
-                    </span>
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="flex items-center gap-1.5 text-xs font-mono text-zinc-200">
+                        <CalendarIcon className="h-3 w-3 text-zinc-400 shrink-0" />
+                        <span>{formatInUserTimeZone(a.deadline, activeTimeZone, 'shortDateTime')}</span>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded border text-[10px] font-mono tabular-nums flex items-center gap-1.5 ${styles.badge}`}
+                        title={formatInUserTimeZone(a.deadline, activeTimeZone, 'full')}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${styles.dot}`} />
+                        {formatDeadlineCountdown(a.deadline, a.status, activeTimeZone)}
+                      </span>
+                    </div>
                   ) : (
-                    <span className="text-[10px] font-mono text-zinc-600 inline-flex items-center gap-1">
-                      <CalendarIcon className="h-3 w-3 opacity-60" />
-                      No deadline
-                    </span>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className="text-[11px] font-mono text-zinc-400">
+                        {a.createdAt ? `Created ${formatInUserTimeZone(a.createdAt, activeTimeZone, 'shortDateTime')}` : 'No deadline'}
+                      </span>
+                      <span className="text-[10px] font-mono text-zinc-600 inline-flex items-center gap-1">
+                        <CalendarIcon className="h-3 w-3 opacity-60" />
+                        No deadline
+                      </span>
+                    </div>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingDeadlineItem(a);
-                      setEditDeadlineInput(
-                        toDateTimeLocalValue(a.deadline, activeTimeZone) || getPresetDateTimeLocal(48, activeTimeZone)
-                      );
-                    }}
-                    className="p-1.5 rounded-md border border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
-                    title="Edit deadline"
-                  >
-                    <CalendarIcon className="h-3.5 w-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingDeadlineItem(a);
+                        setEditDeadlineInput(
+                          toDateTimeLocalValue(a.deadline, activeTimeZone) || getPresetDateTimeLocal(48, activeTimeZone)
+                        );
+                      }}
+                      className="p-1.5 rounded-md border border-zinc-800 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+                      title="Edit deadline"
+                    >
+                      <CalendarIcon className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAssignmentToDelete(a)}
+                      className="p-1.5 rounded-md border border-zinc-800 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                      title="Delete assignment"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
               );
@@ -568,6 +612,50 @@ export function AdminAssignmentsPage() {
                   Save Deadline
                 </Button>
               </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Delete Assignment Confirmation Modal */}
+      {assignmentToDelete && (
+        <Modal
+          isOpen={!!assignmentToDelete}
+          onClose={() => setAssignmentToDelete(null)}
+          title="Delete Work Assignment"
+        >
+          <div className="space-y-4 text-xs">
+            <p className="text-zinc-300">
+              Are you sure you want to permanently delete the assignment for{' '}
+              <strong className="text-white">
+                {assignmentToDelete.manga?.title || assignmentToDelete.mangaTitle || 'Series'}
+              </strong>{' '}
+              (Ch. {assignmentToDelete.chapter?.chapterNumber || assignmentToDelete.chapterNumber || '?'}) —{' '}
+              <span className="text-indigo-400 font-mono font-medium">
+                {assignmentToDelete.workType?.name || assignmentToDelete.workTypeName || 'Task'}
+              </span>
+              ?
+            </p>
+            <p className="text-zinc-500 text-[11px]">
+              This will remove the assignment slot and unclaim any assigned work. This action cannot be undone.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-800">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setAssignmentToDelete(null)}
+                disabled={deleteAssignmentMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => deleteAssignmentMutation.mutate(assignmentToDelete.id)}
+                isLoading={deleteAssignmentMutation.isPending}
+              >
+                Delete Assignment
+              </Button>
             </div>
           </div>
         </Modal>

@@ -124,6 +124,12 @@ export function TeamPage() {
     queryFn: () => apiRequest<any[]>('/manga').catch(() => []),
   });
 
+  // 4. Fetch Available Discord Server Roles
+  const { data: serverRoles } = useQuery({
+    queryKey: ['discord', 'server-roles'],
+    queryFn: () => apiRequest<any[]>('/discord/server-roles').catch(() => []),
+  });
+
   // Filter out any unapproved users just in case
   const approvedStaff: any[] = useMemo(() => {
     return (staffData || []).filter((u: any) => u.isApproved !== false);
@@ -920,6 +926,33 @@ export function TeamPage() {
               Selecting a manga series will automatically detect and link its mapped Discord role.
             </p>
           </div>
+
+          {/* Quick Server Role Selector */}
+          {serverRoles && serverRoles.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-zinc-300 flex items-center gap-1.5">
+                <DiscordIcon className="h-3 w-3 text-[#5865F2]" />
+                Select from Server Roles
+              </label>
+              <select
+                value={createDiscordRoleId}
+                onChange={(e) => {
+                  const rId = e.target.value;
+                  setCreateDiscordRoleId(rId);
+                  const found = serverRoles.find((r: any) => r.id === rId);
+                  if (found) setCreateDiscordRoleName(found.name);
+                }}
+                className="w-full h-9 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 px-3 focus:outline-none focus:border-zinc-700 font-mono"
+              >
+                <option value="">-- Or choose an existing server role --</option>
+                {serverRoles.map((r: any) => (
+                  <option key={r.id} value={r.id}>
+                    @{r.name} ({r.id})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Discord Role Name & ID */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

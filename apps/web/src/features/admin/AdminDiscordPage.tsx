@@ -11,6 +11,13 @@ import { Eye, Trash2 } from 'lucide-react';
 export function AdminDiscordPage() {
   const queryClient = useQueryClient();
 
+  // Guild & Server Role State
+  const [selectedGuildId, setSelectedGuildId] = useState('');
+  const [channelSelectMode, setChannelSelectMode] = useState<'picker' | 'manual'>('picker');
+  const [createRoleName, setCreateRoleName] = useState('');
+  const [createRoleColor, setCreateRoleColor] = useState('#818cf8');
+  const [isRolePickerMode, setIsRolePickerMode] = useState(true);
+
   // New Channel Mapping State
   const [newChannelId, setNewChannelId] = useState('');
   const [newChannelName, setNewChannelName] = useState('');
@@ -31,6 +38,16 @@ export function AdminDiscordPage() {
   const [embedColor, setEmbedColor] = useState('#6366f1');
 
   // Queries
+  const { data: guilds, isLoading: isGuildsLoading } = useQuery({
+    queryKey: ['discord', 'guilds'],
+    queryFn: () => apiRequest<any[]>('/discord/guilds').catch(() => []),
+  });
+
+  const { data: serverRoles, isLoading: isServerRolesLoading } = useQuery({
+    queryKey: ['discord', 'server-roles'],
+    queryFn: () => apiRequest<any[]>('/discord/server-roles').catch(() => []),
+  });
+
   const { data: channels, isLoading: isChannelsLoading } = useQuery({
     queryKey: ['discord', 'channels'],
     queryFn: () => apiRequest<any[]>('/discord/channels'),
@@ -54,6 +71,29 @@ export function AdminDiscordPage() {
   const { data: logChannels, isLoading: isLogChannelsLoading } = useQuery({
     queryKey: ['discord', 'log-channels'],
     queryFn: () => apiRequest<any[]>('/discord/log-channels').catch(() => []),
+  });
+
+  // Automatically select first guild when guilds data is available
+  const activeGuild = guilds?.find((g: any) => g.id === selectedGuildId) || guilds?.[0];
+
+  const createRoleMutation = useMutation({
+    mutationFn: async () => {
+      if (!createRoleName.trim()) throw new Error('Role name is required');
+      return apiRequest<any>('/discord/create-role', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: createRoleName.trim(),
+          color: createRoleColor,
+          guildId: selectedGuildId || activeGuild?.id,
+        }),
+      });
+    },
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ['discord', 'server-roles'] });
+      setCreateRoleName('');
+      setNewRoleId(created.id);
+      setNewRoleName(created.name);
+    },
   });
 
   const addLogChannelMutation = useMutation({
@@ -88,8 +128,9 @@ export function AdminDiscordPage() {
       return apiRequest('/discord/channels', {
         method: 'POST',
         body: JSON.stringify({
-          channelId: newChannelId,
-          channelName: newChannelName,
+          guildId: selectedGuildId || activeGuild?.id,
+          channelId: newChannelId.trim(),
+          channelName: newChannelName.trim(),
           mangaId: selectedMangaId,
         }),
       });
@@ -186,20 +227,37 @@ export function AdminDiscordPage() {
             ) : (
               <div className="space-y-2 divide-y divide-zinc-800/80">
                 {channels.map((ch: any) => (
-                  <div key={ch.id} className="pt-2.5 flex items-center justify-between text-xs group">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-mono text-zinc-200 bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700/60 text-[11px] shrink-0">
-                        #{ch.channelName}
-                      </span>
-                      <span className="text-zinc-500 text-[10px]">→</span>
-                      <span className="font-semibold text-zinc-100 truncate">{ch.mangaTitle}</span>
+                  <div key={ch.id} className="pt-2.5 pb-1 flex items-center justify-between text-xs group gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {/* Server Guild PFP */}
+                      <div className="h-7 w-7 rounded-full bg-zinc-800 border border-zinc-700/80 overflow-hidden shrink-0 flex items-center justify-center">
+                        {ch.guildIcon ? (
+                          <img src={ch.guildIcon} alt={ch.guildName || 'Server'} className="h-full w-full object-cover" />
+                        ) : (
+                          <DiscordIcon className="h-3.5 w-3.5 text-[#5865F2]" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-[11px] text-zinc-300 truncate">
+                            {ch.guildName || 'Discord Server'}
+                          </span>
+                          <span className="font-mono text-zinc-200 bg-zinc-800/80 px-1.5 py-0.5 rounded border border-zinc-700/60 text-[10px] shrink-0">
+                            #{ch.channelName}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 text-[11px] text-zinc-400 mt-0.5">
+                          <span className="text-zinc-500">→</span>
+                          <span className="font-semibold text-zinc-100 truncate">{ch.mangaTitle}</span>
+                        </div>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-mono text-[10px] text-zinc-500">ID: {ch.channelId}</span>
+                      <span className="font-mono text-[10px] text-zinc-500 hidden sm:inline">ID: {ch.channelId}</span>
                       <button
                         type="button"
                         onClick={() => deleteChannelMutation.mutate(ch.id)}
-                        className="text-zinc-500 hover:text-rose-400 p-1 rounded hover:bg-rose-500/10 transition-colors"
+                        className="text-zinc-500 hover:text-rose-400 p-1.5 rounded hover:bg-rose-500/10 transition-colors"
                         title="Delete mapping"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -218,28 +276,90 @@ export function AdminDiscordPage() {
               }}
               className="pt-3 border-t border-zinc-800 space-y-3 text-xs"
             >
-              <div className="text-[11px] font-medium text-zinc-300">Add new channel mapping</div>
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  type="text"
-                  placeholder="Channel ID (e.g. 1198374829)"
-                  value={newChannelId}
-                  onChange={(e) => setNewChannelId(e.target.value)}
-                  required
-                />
-                <Input
-                  type="text"
-                  placeholder="Channel name (e.g. one-piece)"
-                  value={newChannelName}
-                  onChange={(e) => setNewChannelName(e.target.value)}
-                  required
-                />
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-zinc-300">Add new channel mapping</span>
+                <button
+                  type="button"
+                  onClick={() => setChannelSelectMode(channelSelectMode === 'picker' ? 'manual' : 'picker')}
+                  className="text-[10px] text-indigo-400 hover:text-indigo-300 underline"
+                >
+                  {channelSelectMode === 'picker' ? 'Enter manual Channel ID' : 'Select from server channels'}
+                </button>
               </div>
+
+              {/* Server / Guild Selection */}
+              {guilds && guilds.length > 0 && (
+                <div>
+                  <label className="block text-zinc-400 text-[11px] mb-1">Target Discord Server</label>
+                  <div className="flex items-center gap-2">
+                    {activeGuild?.icon && (
+                      <img src={activeGuild.icon} alt={activeGuild.name} className="h-7 w-7 rounded-full object-cover shrink-0 border border-zinc-700" />
+                    )}
+                    <select
+                      value={selectedGuildId || activeGuild?.id || ''}
+                      onChange={(e) => {
+                        setSelectedGuildId(e.target.value);
+                        setNewChannelId('');
+                        setNewChannelName('');
+                      }}
+                      className="w-full bg-[#18181b] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-zinc-700 text-xs"
+                    >
+                      {guilds.map((g: any) => (
+                        <option key={g.id} value={g.id}>
+                          {g.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Channel Selection: Picker vs Manual */}
+              {channelSelectMode === 'picker' && activeGuild?.channels && activeGuild.channels.length > 0 ? (
+                <div>
+                  <label className="block text-zinc-400 text-[11px] mb-1">Select Channel</label>
+                  <select
+                    value={newChannelId}
+                    onChange={(e) => {
+                      const chId = e.target.value;
+                      setNewChannelId(chId);
+                      const found = activeGuild.channels.find((c: any) => c.id === chId);
+                      if (found) setNewChannelName(found.name);
+                    }}
+                    className="w-full bg-[#18181b] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-zinc-700 text-xs font-mono"
+                    required
+                  >
+                    <option value="">-- Choose a text channel --</option>
+                    {activeGuild.channels.map((c: any) => (
+                      <option key={c.id} value={c.id}>
+                        #{c.name} ({c.id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="text"
+                    placeholder="Channel ID (e.g. 1198374829)"
+                    value={newChannelId}
+                    onChange={(e) => setNewChannelId(e.target.value)}
+                    required
+                  />
+                  <Input
+                    type="text"
+                    placeholder="Channel name (e.g. one-piece)"
+                    value={newChannelName}
+                    onChange={(e) => setNewChannelName(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
 
               <select
                 value={selectedMangaId}
                 onChange={(e) => setSelectedMangaId(e.target.value)}
-                className="w-full bg-[#18181b] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-zinc-700"
+                className="w-full bg-[#18181b] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-zinc-700 text-xs"
                 required
               >
                 <option value="">Select series to associate</option>
@@ -254,6 +374,90 @@ export function AdminDiscordPage() {
                 <PlusIcon className="h-3.5 w-3.5" />
                 Add channel mapping
               </Button>
+            </form>
+          </div>
+
+          {/* Discord Server Roles & Role Creation */}
+          <div className="rounded-xl border border-zinc-800 bg-[#111215] p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-semibold text-zinc-200 flex items-center gap-2">
+                  <DiscordIcon className="h-3.5 w-3.5 text-[#5865F2]" />
+                  Server roles & direct creation
+                </h3>
+                <p className="text-[11px] text-zinc-500 mt-0.5">
+                  Available Discord server roles synced live from the Discord gateway
+                </p>
+              </div>
+              <Badge variant="outline">
+                {serverRoles?.length || 0} roles
+              </Badge>
+            </div>
+
+            {/* List of server roles */}
+            <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-2 rounded-lg bg-zinc-950/60 border border-zinc-800/80">
+              {isServerRolesLoading ? (
+                <div className="text-[11px] text-zinc-500 font-mono py-1">Loading server roles...</div>
+              ) : !serverRoles || serverRoles.length === 0 ? (
+                <div className="text-[11px] text-zinc-500 py-1">No roles found on server.</div>
+              ) : (
+                serverRoles.map((r: any) => (
+                  <span
+                    key={r.id}
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-mono border"
+                    style={{
+                      backgroundColor: `${r.hexColor || '#818cf8'}15`,
+                      borderColor: `${r.hexColor || '#818cf8'}40`,
+                      color: r.hexColor || '#818cf8',
+                    }}
+                    title={`ID: ${r.id}`}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: r.hexColor || '#818cf8' }} />
+                    @{r.name}
+                  </span>
+                ))
+              )}
+            </div>
+
+            {/* Create New Role Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                createRoleMutation.mutate();
+              }}
+              className="pt-3 border-t border-zinc-800 space-y-2.5 text-xs"
+            >
+              <div className="text-[11px] font-medium text-zinc-300">Create new role in Discord server</div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="sm:col-span-2">
+                  <Input
+                    type="text"
+                    placeholder="Role name (e.g. Solo Leveling Team)"
+                    value={createRoleName}
+                    onChange={(e) => setCreateRoleName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={createRoleColor}
+                    onChange={(e) => setCreateRoleColor(e.target.value)}
+                    className="h-8 w-10 bg-transparent rounded cursor-pointer border border-zinc-700 p-0.5"
+                    title="Role color"
+                  />
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="primary"
+                    className="flex-1 h-8 text-xs gap-1"
+                    isLoading={createRoleMutation.isPending}
+                  >
+                    <PlusIcon className="h-3 w-3" />
+                    Create
+                  </Button>
+                </div>
+              </div>
             </form>
           </div>
 
@@ -317,12 +521,21 @@ export function AdminDiscordPage() {
               }}
               className="pt-3 border-t border-zinc-800 space-y-3 text-xs"
             >
-              <div className="text-[11px] font-medium text-zinc-300">Add work type role mapping</div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-zinc-300">Add work type role mapping</span>
+                <button
+                  type="button"
+                  onClick={() => setIsRolePickerMode(!isRolePickerMode)}
+                  className="text-[10px] text-indigo-400 hover:text-indigo-300 underline"
+                >
+                  {isRolePickerMode ? 'Manual ID entry' : 'Select from server roles'}
+                </button>
+              </div>
               
               <select
                 value={selectedWorkTypeId}
                 onChange={(e) => setSelectedWorkTypeId(e.target.value)}
-                className="w-full bg-[#18181b] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-zinc-700"
+                className="w-full bg-[#18181b] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-zinc-700 text-xs"
                 required
               >
                 <option value="">Select work type stage</option>
@@ -333,22 +546,45 @@ export function AdminDiscordPage() {
                 ))}
               </select>
 
-              <div className="grid grid-cols-2 gap-2">
-                <Input
-                  type="text"
-                  placeholder="Role Name (e.g. @Translators)"
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                  required
-                />
-                <Input
-                  type="text"
-                  placeholder="Discord Role ID (e.g. 119837482910)"
-                  value={newRoleId}
-                  onChange={(e) => setNewRoleId(e.target.value)}
-                  required
-                />
-              </div>
+              {isRolePickerMode && serverRoles && serverRoles.length > 0 ? (
+                <div>
+                  <select
+                    value={newRoleId}
+                    onChange={(e) => {
+                      const rId = e.target.value;
+                      setNewRoleId(rId);
+                      const found = serverRoles.find((r: any) => r.id === rId);
+                      if (found) setNewRoleName(found.name);
+                    }}
+                    className="w-full bg-[#18181b] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-zinc-700 text-xs font-mono"
+                    required
+                  >
+                    <option value="">-- Select Discord role to ping --</option>
+                    {serverRoles.map((r: any) => (
+                      <option key={r.id} value={r.id}>
+                        @{r.name} ({r.id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="text"
+                    placeholder="Role Name (e.g. @Translators)"
+                    value={newRoleName}
+                    onChange={(e) => setNewRoleName(e.target.value)}
+                    required
+                  />
+                  <Input
+                    type="text"
+                    placeholder="Discord Role ID (e.g. 119837482910)"
+                    value={newRoleId}
+                    onChange={(e) => setNewRoleId(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
 
               <Button type="submit" size="sm" variant="secondary" className="w-full h-8 gap-1.5" isLoading={roleMutation.isPending}>
                 <PlusIcon className="h-3.5 w-3.5" />

@@ -13,6 +13,7 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuInteraction,
   ModalSubmitInteraction,
+  PermissionFlagsBits,
 } from 'discord.js';
 import { BotModule, BotCommand, CommandContext } from '../../core/types';
 import {
@@ -595,6 +596,288 @@ const setroleCommand: BotCommand = {
 
     await interaction.reply({ embeds: [embed] });
   },
+};
+
+// 2b. /removerole series: <title>
+const removeroleCommand: BotCommand = {
+  name: 'removerole',
+  description: 'Remove the notification Discord role from a manga series',
+  data: new SlashCommandBuilder()
+    .setName('removerole')
+    .setDescription('Remove the notification Discord role from a manga series')
+    .setDMPermission(true)
+    .addStringOption((opt) =>
+      opt
+        .setName('series')
+        .setDescription('Manga or Manhwa series title')
+        .setRequired(true)
+        .setAutocomplete(true)
+    ),
+
+  autocomplete: async (interaction: AutocompleteInteraction) => {
+    try {
+      const focusedValue = interaction.options.getFocused().toLowerCase();
+      const mangas = await MangaModel.find({
+        $or: [
+          { title: { $regex: focusedValue, $options: 'i' } },
+          { altTitles: { $regex: focusedValue, $options: 'i' } },
+        ],
+      })
+        .limit(20)
+        .lean();
+
+      await interaction.respond(
+        mangas.map((m) => ({
+          name: `${m.title} (${m.status})`,
+          value: m.title,
+        }))
+      );
+    } catch {
+      await interaction.respond([]);
+    }
+  },
+
+  execute: async ({ interaction }: CommandContext) => {
+    const isAdmin = await checkIsAdmin(interaction.user.id);
+    if (!isAdmin) {
+      await interaction.reply({
+        content: '❌ **Permission Denied**: Only administrators and managers can remove manga role tagging.',
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const seriesTitle = interaction.options.getString('series', true).trim();
+    const manga = await MangaModel.findOne({
+      $or: [
+        { title: { $regex: `^${seriesTitle}$`, $options: 'i' } },
+        { title: { $regex: seriesTitle, $options: 'i' } },
+        { altTitles: { $regex: seriesTitle, $options: 'i' } },
+      ],
+    });
+
+    if (!manga) {
+      await interaction.reply({
+        content: `❌ Could not find series **"${seriesTitle}"** in the database.`,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const prevRole = manga.discordRoleName || manga.discordRoleId || 'None';
+    manga.discordRoleId = undefined;
+    manga.discordRoleName = undefined;
+    manga.discordGuildId = undefined;
+    await manga.save();
+
+    const embed = new EmbedBuilder()
+      .setColor(0xf59e0b)
+      .setTitle('🗑️ Series Role Tagging Removed')
+      .setDescription(`Notification role **@${prevRole}** has been removed from **${manga.title}**.`)
+      .addFields(
+        { name: 'Series', value: `**${manga.title}**`, inline: true },
+        { name: 'Previous Role', value: `@${prevRole}`, inline: true }
+      )
+      .setFooter({ text: 'ClaimBoard • Synced with web platform' })
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed] });
+  },
+};
+
+// 2c. /series-role set / remove
+const seriesRoleCommand: BotCommand = {
+  name: 'series-role',
+  description: 'Configure or remove the notification Discord role for a manga series',
+  data: new SlashCommandBuilder()
+    .setName('series-role')
+    .setDescription('Configure or remove the notification Discord role for a manga series')
+    .setDMPermission(true)
+    .addSubcommand((sub) =>
+      sub
+        .setName('set')
+        .setDescription('Set or change the Discord role to tag for a manga series')
+        .addStringOption((opt) =>
+          opt
+            .setName('series')
+            .setDescription('Manga or Manhwa series title')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+        .addRoleOption((opt) =>
+          opt
+            .setName('role')
+            .setDescription('Discord role to tag when /assign is used')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName('remove')
+        .setDescription('Remove the Discord role tagged for a manga series')
+        .addStringOption((opt) =>
+          opt
+            .setName('series')
+            .setDescription('Manga or Manhwa series title')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+    ),
+
+  autocomplete: async (interaction: AutocompleteInteraction) => {
+    try {
+      const focusedValue = interaction.options.getFocused().toLowerCase();
+      const mangas = await MangaModel.find({
+        $or: [
+          { title: { $regex: focusedValue, $options: 'i' } },
+          { altTitles: { $regex: focusedValue, $options: 'i' } },
+        ],
+      })
+        .limit(20)
+        .lean();
+
+      await interaction.respond(
+        mangas.map((m) => ({
+          name: `${m.title} (${m.status})`,
+          value: m.title,
+        }))
+      );
+    } catch {
+      await interaction.respond([]);
+    }
+  },
+
+  execute: async ({ interaction }: CommandContext) => {
+    const sub = interaction.options.getSubcommand();
+    if (sub === 'set') {
+      await setroleCommand.execute({ interaction } as any);
+    } else if (sub === 'remove') {
+      await removeroleCommand.execute({ interaction } as any);
+    }
+  },
+};
+
+// 2d. /create-role name: <name> [color: <color>]
+const createRoleCommand: BotCommand = {
+  name: 'create-role',
+  description: 'Create a new Discord role directly on this server',
+  data: new SlashCommandBuilder()
+    .setName('create-role')
+    .setDescription('Create a new Discord role directly on this server')
+    .setDMPermission(false)
+    .addStringOption((opt) =>
+      opt
+        .setName('name')
+        .setDescription('Name of the new role (e.g. Solo Leveling Team)')
+        .setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt
+        .setName('color')
+        .setDescription('Hex color code or name (e.g. #3b82f6, #10b981, blue, green)')
+        .setRequired(false)
+    )
+    .addBooleanOption((opt) =>
+      opt
+        .setName('mentionable')
+        .setDescription('Whether this role can be mentioned by members (default: true)')
+        .setRequired(false)
+    )
+    .addBooleanOption((opt) =>
+      opt
+        .setName('hoist')
+        .setDescription('Display role members separately in the sidebar (default: false)')
+        .setRequired(false)
+    ),
+
+  execute: async ({ interaction }: CommandContext) => {
+    const isAdmin = await checkIsAdmin(interaction.user.id, interaction.memberPermissions);
+    if (!isAdmin) {
+      await interaction.reply({
+        content: '❌ **Permission Denied**: You need Administrator, Manage Guild, or ClaimBoard Admin permissions to create roles.',
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (!interaction.guild) {
+      await interaction.reply({
+        content: '❌ This command can only be executed within a Discord server.',
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const roleName = interaction.options.getString('name', true).trim();
+    const colorInput = interaction.options.getString('color');
+    const mentionable = interaction.options.getBoolean('mentionable') ?? true;
+    const hoist = interaction.options.getBoolean('hoist') ?? false;
+
+    // Check bot permissions to manage roles
+    const me = interaction.guild.members.me;
+    if (me && !me.permissions.has(PermissionFlagsBits.ManageRoles)) {
+      await interaction.reply({
+        content: '❌ **Bot Missing Permissions**: The bot requires the **Manage Roles** permission on this server to create roles.',
+        ephemeral: true,
+      });
+      return;
+    }
+
+    try {
+      const createdRole = await interaction.guild.roles.create({
+        name: roleName,
+        color: colorInput as any,
+        hoist,
+        mentionable,
+        reason: `Created by ${interaction.user.tag} via ClaimBoard /create-role`,
+      });
+
+      const embed = new EmbedBuilder()
+        .setColor(createdRole.color || 0x6366f1)
+        .setTitle('✨ Discord Role Created')
+        .setDescription(`Successfully created role <@&${createdRole.id}> on **${interaction.guild.name}**!`)
+        .addFields(
+          { name: 'Role Name', value: `\`${createdRole.name}\``, inline: true },
+          { name: 'Role Mention', value: `<@&${createdRole.id}>`, inline: true },
+          { name: 'Role ID', value: `\`${createdRole.id}\``, inline: true },
+          { name: 'Color', value: `\`${createdRole.hexColor}\``, inline: true },
+          { name: 'Mentionable', value: createdRole.mentionable ? 'Yes' : 'No', inline: true },
+          { name: 'Hoisted', value: createdRole.hoist ? 'Yes' : 'No', inline: true }
+        )
+        .setFooter({ text: 'ClaimBoard • Available in web series role picker' })
+        .setTimestamp();
+
+      await interaction.reply({ embeds: [embed] });
+    } catch (err: any) {
+      await interaction.reply({
+        content: `❌ **Failed to create role**: ${err?.message || err}`,
+        ephemeral: true,
+      });
+    }
+  },
+};
+
+// 2e. /createrole alias
+const createroleCommand: BotCommand = {
+  ...createRoleCommand,
+  name: 'createrole',
+  description: 'Create a new Discord role directly on this server (alias)',
+  data: new SlashCommandBuilder()
+    .setName('createrole')
+    .setDescription('Create a new Discord role on this server')
+    .setDMPermission(false)
+    .addStringOption((opt) =>
+      opt.setName('name').setDescription('Name of the new role').setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt.setName('color').setDescription('Hex color code or name').setRequired(false)
+    )
+    .addBooleanOption((opt) =>
+      opt.setName('mentionable').setDescription('Whether this role can be mentioned').setRequired(false)
+    )
+    .addBooleanOption((opt) =>
+      opt.setName('hoist').setDescription('Display role members separately').setRequired(false)
+    ),
 };
 
 // 3. /claim command (legacy text/slash fallback)
@@ -2134,6 +2417,10 @@ export const claimboardModule: BotModule = {
   commands: [
     assignCommand,
     setroleCommand,
+    removeroleCommand,
+    seriesRoleCommand,
+    createRoleCommand,
+    createroleCommand,
     claimCommand,
     unclaimCommand,
     myclaimsCommand,

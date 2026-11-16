@@ -1335,4 +1335,61 @@ export class ProductionService {
 
     return { removedUploadTypes, removedUploadAssignments, removedDuplicateAssignments };
   }
+
+  /**
+   * Delete a work assignment and clean up associated claims, deliverables, reviews, and update manga stats.
+   */
+  static async deleteAssignment({
+    organizationId,
+    assignmentId,
+    actorId,
+    actorName,
+  }: {
+    organizationId: string;
+    assignmentId: string;
+    actorId?: string;
+    actorName?: string;
+  }) {
+    const assignment: any = await WorkAssignmentModel.findOne({ _id: assignmentId, organizationId });
+    if (!assignment) {
+      const error: any = new Error('Assignment not found');
+      error.code = API_ERROR_CODES.ASSIGNMENT_NOT_FOUND;
+      throw error;
+    }
+
+    // Clean up claims, deliverables, reviews
+    await ClaimModel.deleteMany({ assignmentId: assignment._id });
+    await DeliverableModel.deleteMany({ assignmentId: assignment._id });
+    await ReviewModel.deleteMany({ assignmentId: assignment._id });
+
+    // Remove from dependent assignments if any depend on this assignment
+    await WorkAssignmentModel.updateMany(
+      { dependsOnAssignmentIds: assignment._id },
+      { $pull: { dependsOnAssignmentIds: assignment._id } }
+    );
+
+    // Delete the assignment
+    await WorkAssignmentModel.deleteOne({ _id: assignment._id });
+
+    // Decrement openTasksCount on Manga if this assignment was open
+    if (assignment.status === 'OPEN' && assignment.mangaId) {
+      await MangaModel.updateOne(
+        { _id: assignment.mangaId, openTasksCount: { $gt: 0 } },
+        { $inc: { openTasksCount: -1 } }
+      ).catch(() => null);
+    }
+
+    // Record audit log
+    await AuditLogModel.create({
+      organizationId,
+      actorId: actorId || 'system',
+      actorName: actorName || 'System',
+      action: 'ASSIGNMENT_DELETED',
+      entity: 'WorkAssignment',
+      entityId: assignmentId,
+      before: assignment.toObject ? assignment.toObject() : assignment,
+    }).catch(() => null);
+
+    return { success: true, deletedId: assignmentId };
+  }
 }

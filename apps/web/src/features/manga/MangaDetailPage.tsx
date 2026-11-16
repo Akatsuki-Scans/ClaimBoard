@@ -52,6 +52,10 @@ export function MangaDetailPage() {
   const [isDiscordRoleModalOpen, setIsDiscordRoleModalOpen] = useState(false);
   const [discordRoleId, setDiscordRoleId] = useState('');
   const [discordRoleName, setDiscordRoleName] = useState('');
+  const [isCreatingRole, setIsCreatingRole] = useState(false);
+  const [newRoleInputName, setNewRoleInputName] = useState('');
+  const [newRoleInputColor, setNewRoleInputColor] = useState('#818cf8');
+  const [useManualEntry, setUseManualEntry] = useState(false);
 
   // AniList metadata state
   const [anilistData, setAnilistData] = useState<AnilistManga | null>(null);
@@ -73,21 +77,49 @@ export function MangaDetailPage() {
     queryFn: () => (id ? apiRequest<any[]>(`/chapters?mangaId=${id}`) : []),
   });
 
+  const { data: serverRoles, isLoading: isServerRolesLoading } = useQuery({
+    queryKey: ['discord', 'server-roles'],
+    queryFn: () => apiRequest<any[]>('/discord/server-roles').catch(() => []),
+  });
+
+  // Create Discord Role Mutation
+  const createRoleMutation = useMutation({
+    mutationFn: async () => {
+      if (!newRoleInputName.trim()) throw new Error('Role name is required');
+      return apiRequest<any>('/discord/create-role', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: newRoleInputName.trim(),
+          color: newRoleInputColor,
+        }),
+      });
+    },
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ['discord', 'server-roles'] });
+      setDiscordRoleId(created.id);
+      setDiscordRoleName(created.name);
+      setNewRoleInputName('');
+      setIsCreatingRole(false);
+    },
+  });
+
   // Update Discord Role Mutation
   const updateDiscordRoleMutation = useMutation({
     mutationFn: async (payload?: { roleId?: string; roleName?: string }) => {
       const targetId = payload?.roleId !== undefined ? payload.roleId : discordRoleId.trim();
       const targetName = payload?.roleName !== undefined ? payload.roleName : discordRoleName.trim();
-      return apiRequest(`/manga/${id}`, {
-        method: 'PUT',
+      return apiRequest('/discord/series-role', {
+        method: 'POST',
         body: JSON.stringify({
-          discordRoleId: targetId || undefined,
-          discordRoleName: targetName || undefined,
+          mangaId: id,
+          roleId: targetId || null,
+          roleName: targetName || null,
         }),
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['manga', id] });
+      queryClient.invalidateQueries({ queryKey: ['manga'] });
       setIsDiscordRoleModalOpen(false);
     },
   });
@@ -668,30 +700,130 @@ export function MangaDetailPage() {
         >
           <div className="space-y-4 text-xs">
             <p className="text-zinc-400 leading-relaxed">
-              Configure the Discord role to automatically tag whenever new chapters of <strong className="text-white">{manga?.title}</strong> are assigned using <code className="text-indigo-300 bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-800/40">/assign</code> in your Discord server.
+              Select or create a Discord role to tag whenever new chapters of <strong className="text-white">{manga?.title}</strong> are announced or assigned in Discord.
             </p>
+
+            {/* Role Picker from Discord Server Roles */}
             <div>
-              <label className="text-[11px] font-medium text-zinc-300 block mb-1">
-                Discord role name (e.g. Solo Leveling Team)
-              </label>
-              <Input
-                value={discordRoleName}
-                onChange={(e) => setDiscordRoleName(e.target.value)}
-                placeholder="e.g. Solo Leveling Team or Translators"
-                className="text-xs"
-              />
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[11px] font-medium text-zinc-300">
+                  Select Server Role
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingRole(!isCreatingRole)}
+                    className="text-[11px] text-indigo-400 hover:text-indigo-300 underline font-medium"
+                  >
+                    {isCreatingRole ? 'Hide role creator' : '+ Create new role'}
+                  </button>
+                  <span className="text-zinc-600">•</span>
+                  <button
+                    type="button"
+                    onClick={() => setUseManualEntry(!useManualEntry)}
+                    className="text-[11px] text-zinc-400 hover:text-zinc-300 underline"
+                  >
+                    {useManualEntry ? 'Select from list' : 'Manual ID'}
+                  </button>
+                </div>
+              </div>
+
+              {!useManualEntry ? (
+                <div className="space-y-2">
+                  <select
+                    value={discordRoleId}
+                    onChange={(e) => {
+                      const selectedId = e.target.value;
+                      setDiscordRoleId(selectedId);
+                      const found = serverRoles?.find((r: any) => r.id === selectedId);
+                      if (found) {
+                        setDiscordRoleName(found.name);
+                      }
+                    }}
+                    className="w-full bg-[#18181b] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-indigo-500 font-mono text-xs"
+                  >
+                    <option value="">-- Choose a Discord Role --</option>
+                    {serverRoles?.map((r: any) => (
+                      <option key={r.id} value={r.id}>
+                        @{r.name} ({r.id})
+                      </option>
+                    ))}
+                  </select>
+
+                  {discordRoleId && (
+                    <div className="p-2 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full shrink-0"
+                          style={{
+                            backgroundColor:
+                              serverRoles?.find((r: any) => r.id === discordRoleId)?.hexColor || '#818cf8',
+                          }}
+                        />
+                        <span className="font-semibold text-zinc-100">
+                          @{discordRoleName || discordRoleId}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-zinc-500">ID: {discordRoleId}</span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[10px] text-zinc-400 block mb-0.5">Role Name</label>
+                    <Input
+                      value={discordRoleName}
+                      onChange={(e) => setDiscordRoleName(e.target.value)}
+                      placeholder="e.g. Solo Leveling Team"
+                      className="text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-zinc-400 block mb-0.5">Role ID</label>
+                    <Input
+                      value={discordRoleId}
+                      onChange={(e) => setDiscordRoleId(e.target.value)}
+                      placeholder="e.g. 1446000987742535814"
+                      className="text-xs font-mono"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
-            <div>
-              <label className="text-[11px] font-medium text-zinc-300 block mb-1">
-                Discord role ID (Right click role in Discord ➔ Copy ID)
-              </label>
-              <Input
-                value={discordRoleId}
-                onChange={(e) => setDiscordRoleId(e.target.value)}
-                placeholder="e.g. 1446000987742535814"
-                className="text-xs font-mono"
-              />
-            </div>
+
+            {/* Inline Role Creator */}
+            {isCreatingRole && (
+              <div className="p-3 rounded-lg border border-indigo-900/40 bg-indigo-950/20 space-y-2.5">
+                <div className="text-[11px] font-semibold text-indigo-300">Create New Role in Discord</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Input
+                    value={newRoleInputName}
+                    onChange={(e) => setNewRoleInputName(e.target.value)}
+                    placeholder="New role name (e.g. One Piece Team)"
+                    className="text-xs"
+                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={newRoleInputColor}
+                      onChange={(e) => setNewRoleInputColor(e.target.value)}
+                      className="h-8 w-10 bg-transparent rounded cursor-pointer border border-zinc-700 p-0.5"
+                    />
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => createRoleMutation.mutate()}
+                      isLoading={createRoleMutation.isPending}
+                      className="flex-1 text-xs h-8"
+                    >
+                      Create & Select
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between pt-3 border-t border-zinc-800">
               {manga?.discordRoleId ? (
                 <Button
