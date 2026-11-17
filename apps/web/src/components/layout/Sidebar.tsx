@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, Link, useLocation } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   HomeIcon,
@@ -10,6 +10,7 @@ import {
   HistoryIcon,
   TeamIcon,
   AnalyticsIcon,
+  ClaimBoardLogoIcon,
   AdminIcon,
   UserCheckIcon,
   DiscordIcon,
@@ -102,25 +103,19 @@ export function Sidebar() {
       <div className="overflow-y-auto scrollbar-none">
         {/* Brand Header */}
         <div className="h-14 px-4 flex items-center justify-between border-b border-zinc-800/80 sticky top-0 bg-[#090a0b] z-10">
-          <Link to="/dashboard" className="flex items-center gap-2.5 group min-w-0">
+          <div className="flex items-center gap-2.5">
             <motion.div
-              whileHover={{ scale: 1.05 }}
+              whileHover={{ rotate: 90 }}
               transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-              className="flex items-center justify-center shrink-0 cursor-pointer"
+              className="text-zinc-100 flex items-center justify-center h-7 w-7 rounded-md bg-zinc-900 border border-zinc-800 shadow-sm cursor-pointer"
             >
-              <img
-                src="/Akatsuki_Cloud.png"
-                alt="Akatsuki Cloud"
-                className="h-7 w-auto object-contain"
-              />
+              <ClaimBoardLogoIcon className="h-4 w-4 text-zinc-100" />
             </motion.div>
             <div className="flex flex-col min-w-0">
-              <span className="font-semibold text-xs tracking-tight text-zinc-100 leading-tight group-hover:text-white transition-colors">
-                ClaimBoard
-              </span>
+              <span className="font-semibold text-xs tracking-tight text-zinc-100 leading-tight">ClaimBoard</span>
               <span className="text-[10px] text-zinc-500 font-mono truncate">Scanlation Desk</span>
             </div>
-          </Link>
+          </div>
 
           {/* Close button on mobile */}
           <button

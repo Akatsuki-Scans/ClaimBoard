@@ -60,20 +60,11 @@ export function Navbar() {
         <button
           type="button"
           onClick={toggleSidebar}
-          className="md:hidden p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors shrink-0"
+          className="md:hidden p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors"
           aria-label="Toggle navigation menu"
         >
           <MenuIcon className="h-4 w-4" />
         </button>
-
-        {/* Mobile brand cloud logo */}
-        <Link to="/dashboard" className="md:hidden flex items-center shrink-0">
-          <img
-            src="/Akatsuki_Cloud.png"
-            alt="Akatsuki Scans Logo"
-            className="h-6 w-auto object-contain"
-          />
-        </Link>
 
         <div className="relative w-full">
           <SearchIcon className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500 pointer-events-none" />
