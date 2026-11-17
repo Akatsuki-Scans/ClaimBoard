@@ -26,6 +26,7 @@ import {
   UserModel,
   OrganizationModel,
   ProductionService,
+  DeliverableModel,
 } from '@claimboard/database';
 import { checkIsAdmin } from '../admin';
 import { BotLogger } from '../../core/botLogger';
@@ -1980,34 +1981,54 @@ async function handleTaskReviewButton(interaction: ButtonInteraction) {
     });
   }
 
-  // Ensure active claim exists if needed
-  if (!assignment.activeClaimId) {
-    const claim = await ClaimModel.findOne({ assignmentId: assignment._id }).sort({ createdAt: -1 });
-    if (claim) {
-      assignment.activeClaimId = claim._id;
-      await assignment.save();
-    } else {
-      const newClaim = await ClaimModel.create({
-        organizationId: assignment.organizationId,
-        assignmentId: assignment._id,
-        workerId: assignment.assignedWorkerId || reviewerUser._id,
-        workerName: assignment.assignedWorkerName || 'Worker',
-        status: isApprove ? 'COMPLETED' : 'CHANGES_REQUESTED',
-        claimedAt: new Date(),
-        deadline: assignment.deadline,
-        revisions: [
-          {
-            revisionNumber: 1,
-            deliverableUrl: 'Reviewed via Discord DM',
-            submittedAt: new Date(),
-            submittedById: assignment.assignedWorkerId || reviewerUser._id,
-            submittedByName: assignment.assignedWorkerName || 'Worker',
-          } as any,
-        ],
-      });
-      assignment.activeClaimId = newClaim._id;
-      await assignment.save();
-    }
+  // Ensure active claim exists and points to a valid claim record
+  let claim: any = assignment.activeClaimId
+    ? await ClaimModel.findById(assignment.activeClaimId)
+    : null;
+
+  if (!claim) {
+    claim = await ClaimModel.findOne({ assignmentId: assignment._id }).sort({ createdAt: -1 });
+  }
+
+  if (!claim) {
+    claim = await ClaimModel.create({
+      organizationId: assignment.organizationId,
+      assignmentId: assignment._id,
+      workerId: assignment.assignedWorkerId || reviewerUser._id,
+      workerName: assignment.assignedWorkerName || 'Worker',
+      status: isApprove ? 'COMPLETED' : 'CHANGES_REQUESTED',
+      claimedAt: new Date(),
+      deadline: assignment.deadline,
+      revisions: [
+        {
+          revisionNumber: 1,
+          deliverableUrl: 'Reviewed via Discord DM',
+          submittedAt: new Date(),
+          submittedById: assignment.assignedWorkerId || reviewerUser._id,
+          submittedByName: assignment.assignedWorkerName || 'Worker',
+        } as any,
+      ],
+    });
+  }
+
+  assignment.activeClaimId = claim._id;
+  await assignment.save();
+
+  // Ensure a Deliverable record exists so the web pipeline always reflects deliverable history
+  const existingDeliverable = await DeliverableModel.findOne({ assignmentId: assignment._id }).sort({ revision: -1 });
+  if (!existingDeliverable) {
+    const revUrl = claim.revisions?.[claim.revisions.length - 1]?.deliverableUrl || 'https://discord.com';
+    await DeliverableModel.create({
+      organizationId: assignment.organizationId,
+      assignmentId: assignment._id,
+      claimId: claim._id,
+      revision: claim.revisions?.length || 1,
+      url: revUrl,
+      label: isApprove ? 'Approved via Discord DM' : 'Reviewed via Discord DM',
+      notes: isApprove ? 'Approved directly by Administrator' : 'Changes requested via Admin DM',
+      submittedById: assignment.assignedWorkerId || reviewerUser._id,
+      submittedByName: assignment.assignedWorkerName || 'Worker',
+    });
   }
 
   if (isApprove) {
@@ -2029,6 +2050,9 @@ async function handleTaskReviewButton(interaction: ButtonInteraction) {
       comment: 'Changes requested via Admin DM',
     });
   }
+
+  // Reload the freshly updated assignment from database
+  const refreshedAssignment = await WorkAssignmentModel.findById(assignment._id).populate('workTypeId');
 
   // Update the Admin DM Embed in place
   const oldEmbed = interaction.message.embeds[0];
@@ -2083,7 +2107,7 @@ async function handleTaskReviewButton(interaction: ButtonInteraction) {
   // Notify worker via DM and edit their original submission message in place
   await notifyClaimerAndEditSubmissionMessage({
     client: interaction.client,
-    assignment,
+    assignment: refreshedAssignment || assignment,
     manga,
     chapter,
     workType,
@@ -2325,34 +2349,54 @@ const approveCommand: BotCommand = {
       });
     }
 
-    // Ensure active claim exists if needed
-    if (!assignment.activeClaimId) {
-      const claim = await ClaimModel.findOne({ assignmentId: assignment._id }).sort({ createdAt: -1 });
-      if (claim) {
-        assignment.activeClaimId = claim._id;
-        await assignment.save();
-      } else {
-        const newClaim = await ClaimModel.create({
-          organizationId: assignment.organizationId,
-          assignmentId: assignment._id,
-          workerId: assignment.assignedWorkerId || reviewerUser._id,
-          workerName: assignment.assignedWorkerName || 'Worker',
-          status: 'SUBMITTED',
-          claimedAt: new Date(),
-          deadline: assignment.deadline,
-          revisions: [
-            {
-              revisionNumber: 1,
-              deliverableUrl: 'Approved via /approve command',
-              submittedAt: new Date(),
-              submittedById: assignment.assignedWorkerId || reviewerUser._id,
-              submittedByName: assignment.assignedWorkerName || 'Worker',
-            } as any,
-          ],
-        });
-        assignment.activeClaimId = newClaim._id;
-        await assignment.save();
-      }
+    // Ensure active claim exists and points to a valid claim record
+    let claim: any = assignment.activeClaimId
+      ? await ClaimModel.findById(assignment.activeClaimId)
+      : null;
+
+    if (!claim) {
+      claim = await ClaimModel.findOne({ assignmentId: assignment._id }).sort({ createdAt: -1 });
+    }
+
+    if (!claim) {
+      claim = await ClaimModel.create({
+        organizationId: assignment.organizationId,
+        assignmentId: assignment._id,
+        workerId: assignment.assignedWorkerId || reviewerUser._id,
+        workerName: assignment.assignedWorkerName || 'Worker',
+        status: 'SUBMITTED',
+        claimedAt: new Date(),
+        deadline: assignment.deadline,
+        revisions: [
+          {
+            revisionNumber: 1,
+            deliverableUrl: 'Approved via /approve command',
+            submittedAt: new Date(),
+            submittedById: assignment.assignedWorkerId || reviewerUser._id,
+            submittedByName: assignment.assignedWorkerName || 'Worker',
+          } as any,
+        ],
+      });
+    }
+
+    assignment.activeClaimId = claim._id;
+    await assignment.save();
+
+    // Ensure a Deliverable record exists so the web pipeline always reflects deliverable history
+    const existingDeliverable = await DeliverableModel.findOne({ assignmentId: assignment._id }).sort({ revision: -1 });
+    if (!existingDeliverable) {
+      const revUrl = claim.revisions?.[claim.revisions.length - 1]?.deliverableUrl || 'https://discord.com';
+      await DeliverableModel.create({
+        organizationId: assignment.organizationId,
+        assignmentId: assignment._id,
+        claimId: claim._id,
+        revision: claim.revisions?.length || 1,
+        url: revUrl,
+        label: 'Approved via /approve command',
+        notes: comment || 'Direct administrator approval via Discord slash command',
+        submittedById: assignment.assignedWorkerId || reviewerUser._id,
+        submittedByName: assignment.assignedWorkerName || 'Worker',
+      });
     }
 
     await ProductionService.reviewWork({
@@ -2363,6 +2407,9 @@ const approveCommand: BotCommand = {
       status: 'Approved',
       comment: comment || 'Approved via /approve command',
     });
+
+    // Reload the freshly updated assignment from database
+    const refreshedAssignment = await WorkAssignmentModel.findById(assignment._id).populate('workTypeId');
 
     const embed = new EmbedBuilder()
       .setColor(0x10b981)
@@ -2391,7 +2438,7 @@ const approveCommand: BotCommand = {
     // Notify worker via DM and edit their original submission message in place
     await notifyClaimerAndEditSubmissionMessage({
       client,
-      assignment,
+      assignment: refreshedAssignment || assignment,
       manga,
       chapter,
       workType,

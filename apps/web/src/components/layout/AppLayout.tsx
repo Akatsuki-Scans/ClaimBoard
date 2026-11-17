@@ -7,10 +7,14 @@ import { CommandPalette } from '../ui/CommandPalette';
 import { useAuthStore } from '../../stores/authStore';
 import { apiRequest } from '../../lib/api';
 import { getBrowserTimeZone } from '../../lib/deadlines';
+import { useRealtimeSync } from '../../lib/useRealtimeSync';
 import { Loader2 } from 'lucide-react';
 
 export function AppLayout() {
   const { user, isLoading, fetchMe } = useAuthStore();
+
+  // Mount real-time websocket synchronization across assignments, pipeline, claims, etc.
+  useRealtimeSync();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

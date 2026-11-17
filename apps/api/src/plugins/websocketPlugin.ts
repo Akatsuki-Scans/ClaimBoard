@@ -21,6 +21,15 @@ export function broadcastToAll(event: string, data: any) {
 async function websocketPluginHandler(fastify: FastifyInstance) {
   setEventBroadcaster(broadcastToAll);
 
+  // Internal IPC endpoint for Discord Bot and background services to push real-time events to web clients
+  fastify.post('/api/internal/broadcast', async (req, reply) => {
+    const { event, payload, data } = (req.body as any) || {};
+    if (event) {
+      broadcastToAll(event, payload || data);
+    }
+    return reply.send({ success: true });
+  });
+
   fastify.get('/ws', { websocket: true }, (socket, req) => {
     connectedClients.add(socket);
     console.log(`[WebSocket] Client connected. Total clients: ${connectedClients.size}`);

@@ -261,7 +261,7 @@ export class ProductionService {
     if (assignment.dependsOnAssignmentIds && assignment.dependsOnAssignmentIds.length > 0) {
       const unfinishedDeps = await WorkAssignmentModel.countDocuments({
         _id: { $in: assignment.dependsOnAssignmentIds },
-        status: { $ne: 'COMPLETED' },
+        status: { $nin: ['COMPLETED', 'APPROVED'] },
       });
 
       if (unfinishedDeps > 0) {
@@ -712,8 +712,15 @@ export class ProductionService {
 
     broadcastEvent(SOCKET_EVENTS.ASSIGNMENT_UPDATED, {
       assignmentId,
+      chapterId: assignment.chapterId?.toString(),
       status: assignment.status,
       reviewStatus: status,
+    });
+
+    broadcastEvent(SOCKET_EVENTS.PIPELINE_UPDATED, {
+      chapterId: assignment.chapterId?.toString(),
+      assignmentId,
+      status: assignment.status,
     });
 
     const [mangaDoc, chapterDoc, workerDoc, reviewerDoc]: any[] = await Promise.all([
@@ -865,7 +872,7 @@ export class ProductionService {
     for (const dep of dependentAssignments) {
       const remainingUnfinished = await WorkAssignmentModel.countDocuments({
         _id: { $in: dep.dependsOnAssignmentIds },
-        status: { $ne: 'COMPLETED' },
+        status: { $nin: ['COMPLETED', 'APPROVED'] },
       });
 
       if (remainingUnfinished === 0) {

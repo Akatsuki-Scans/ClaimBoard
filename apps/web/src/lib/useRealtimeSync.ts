@@ -29,13 +29,18 @@ export function useRealtimeSync() {
             // Invalidate relevant TanStack Query caches based on event
             if (
               eventName.startsWith('assignment.') ||
-              eventName.startsWith('claim.')
+              eventName.startsWith('claim.') ||
+              eventName.startsWith('review.') ||
+              eventName.startsWith('chapter.') ||
+              eventName.startsWith('pipeline.')
             ) {
               queryClient.invalidateQueries({ queryKey: ['assignments'] });
               queryClient.invalidateQueries({ queryKey: ['claims'] });
               queryClient.invalidateQueries({ queryKey: ['pipeline'] });
               queryClient.invalidateQueries({ queryKey: ['analytics'] });
               queryClient.invalidateQueries({ queryKey: ['activity'] });
+              queryClient.invalidateQueries({ queryKey: ['deliverables'] });
+              queryClient.invalidateQueries({ queryKey: ['open-work'] });
             }
 
             if (eventName === 'notification.created') {

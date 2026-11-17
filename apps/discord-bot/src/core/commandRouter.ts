@@ -27,32 +27,42 @@ export class CommandRouter {
       }
 
       const activeCommands = moduleManager.getAllCommands();
-      const slashData = activeCommands.map(({ command }) => {
+      const seenNames = new Set<string>();
+      const slashData: any[] = [];
+
+      for (const { command } of activeCommands) {
+        const name = command.name?.toLowerCase();
+        if (!name || seenNames.has(name)) continue;
+        seenNames.add(name);
+
         const data = command.data;
         if (data && 'setDMPermission' in data && typeof data.setDMPermission === 'function') {
           data.setDMPermission(true);
         }
-        return data;
-      });
+        slashData.push(data);
+      }
 
-      console.log(`[CommandRouter] Auto-registering ${slashData.length} slash commands across ${moduleManager.getEnabledModules().length} modules (with DM support enabled)...`);
+      console.log(`[CommandRouter] Auto-registering ${slashData.length} unique global slash commands (with DM support enabled)...`);
       await this.client.application.commands.set(slashData);
       console.log(`[CommandRouter] Successfully registered ${slashData.length} global slash commands with Discord.`);
 
-      // Also register directly to all joined guilds so changes appear INSTANTLY with zero cache delay!
+      // Clear any legacy guild-scoped duplicate commands from joined guilds so commands never show double in Discord
       try {
         const oauthGuilds = await this.client.guilds.fetch();
         for (const [guildId, oauthGuild] of oauthGuilds) {
           try {
             const guild = await oauthGuild.fetch();
-            await guild.commands.set(slashData);
-            console.log(`[CommandRouter] ⚡ Instantly updated ${slashData.length} slash commands in guild: "${guild.name}" (${guildId})`);
+            const guildCmds = await guild.commands.fetch();
+            if (guildCmds.size > 0) {
+              await guild.commands.set([]);
+              console.log(`[CommandRouter] 🧹 Cleared ${guildCmds.size} legacy guild-scoped duplicate command(s) in "${guild.name}" (${guildId})`);
+            }
           } catch (gErr: any) {
-            console.warn(`[CommandRouter] Notice on guild ${guildId} command sync:`, gErr?.message);
+            console.warn(`[CommandRouter] Notice on guild ${guildId} command cleanup:`, gErr?.message);
           }
         }
       } catch (guildFetchErr: any) {
-        console.warn('[CommandRouter] Could not fetch guilds for instant sync:', guildFetchErr?.message);
+        console.warn('[CommandRouter] Could not fetch guilds for command cleanup:', guildFetchErr?.message);
       }
     } catch (err) {
       console.warn('[CommandRouter] Notice on registering slash commands with Discord API:', err);

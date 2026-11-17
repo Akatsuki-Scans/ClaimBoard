@@ -55,6 +55,14 @@ interface StageDeliverable {
   createdAt?: string;
 }
 
+interface PipelineReview {
+  id?: string;
+  reviewerName: string;
+  status: 'Approved' | 'Changes_Requested';
+  comment?: string;
+  createdAt?: string;
+}
+
 interface PipelineStage {
   assignmentId: string;
   workTypeId: string;
@@ -74,6 +82,7 @@ interface PipelineStage {
   hasDeliverables?: boolean;
   deliverablesCount?: number;
   latestDeliverable?: StageDeliverable | null;
+  latestReview?: PipelineReview | null;
 }
 
 interface ChapterPipeline {
@@ -181,10 +190,11 @@ export function PipelinePage() {
     );
   };
 
-  // Live Pipeline query
+  // Live Pipeline query with real-time automatic polling fallback
   const { data: pipelineData, isLoading, refetch, isFetching } = useQuery<ChapterPipeline[]>({
     queryKey: ['pipeline'],
     queryFn: () => apiRequest<ChapterPipeline[]>('/pipeline').catch(() => []),
+    refetchInterval: 4000,
   });
 
   // Identify active chapter based on route parameters
@@ -643,6 +653,18 @@ export function PipelinePage() {
                               )}
                             </div>
 
+                            {/* Approved by Admin Indicator */}
+                            {(stage.status === 'COMPLETED' || stage.status === 'APPROVED') && (
+                              <div className="mt-2 flex items-center gap-1.5 text-[11px] text-emerald-400 font-mono bg-emerald-950/40 border border-emerald-900/50 px-2 py-0.5 rounded-md">
+                                <CheckCircle2 className="h-3 w-3 shrink-0" />
+                                <span className="truncate">
+                                  {stage.latestReview?.reviewerName
+                                    ? `Approved by ${stage.latestReview.reviewerName}`
+                                    : 'Approved by Admin'}
+                                </span>
+                              </div>
+                            )}
+
                             {/* Deadline if present */}
                             {stage.deadline && (
                               (() => {
@@ -1072,32 +1094,40 @@ export function PipelinePage() {
                   )}
 
                   {/* Review & Quality Control Actions */}
-                  <div className="rounded-xl border border-zinc-800 bg-[#0d0e12] p-4 space-y-3">
-                    <h5 className="font-semibold text-zinc-200 text-xs flex items-center gap-1.5">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-white" />
-                      Review & Quality Check
-                    </h5>
+                  {inspectedStage.status === 'COMPLETED' || inspectedStage.status === 'APPROVED' || inspectedStage.latestReview?.status === 'Approved' ? (
+                    <div className="rounded-xl border border-emerald-900/50 bg-emerald-950/20 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                          <h5 className="font-bold text-white text-xs">
+                            Approved & Completed
+                          </h5>
+                        </div>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-900/60 text-emerald-200 border border-emerald-700/60 font-semibold">
+                          {inspectedStage.latestReview?.reviewerName
+                            ? `Approved by ${inspectedStage.latestReview.reviewerName}`
+                            : 'Approved by Administrator'}
+                        </span>
+                      </div>
 
-                    <Input
-                      placeholder="Feedback / Review notes (optional)..."
-                      value={reviewComment}
-                      onChange={(e) => setReviewComment(e.target.value)}
-                      className="bg-zinc-900 border-zinc-800 text-xs"
-                    />
+                      <p className="text-xs text-zinc-300">
+                        This deliverable was reviewed and <strong>approved</strong> by{' '}
+                        <strong className="text-white">
+                          {inspectedStage.latestReview?.reviewerName || 'Administrator'}
+                        </strong>
+                        {inspectedStage.latestReview?.createdAt && (
+                          <span> on {formatInUserTimeZone(inspectedStage.latestReview.createdAt, activeTimeZone, 'shortDateTime')}</span>
+                        )}
+                        . All downstream stages have been unlocked.
+                      </p>
 
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          onClick={() => reviewMutation.mutate({ status: 'Approved' })}
-                          disabled={reviewMutation.isPending}
-                          className="bg-white hover:bg-zinc-200 text-zinc-950 font-semibold text-xs"
-                        >
-                          <Check className="h-3.5 w-3.5 mr-1" />
-                          Approve Submission
-                        </Button>
+                      {inspectedStage.latestReview?.comment && (
+                        <div className="p-2.5 rounded-lg bg-zinc-900/90 border border-zinc-800 text-xs text-zinc-300 italic">
+                          "{inspectedStage.latestReview.comment}"
+                        </div>
+                      )}
 
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-zinc-800/80">
                         <Button
                           size="sm"
                           variant="outline"
@@ -1106,21 +1136,71 @@ export function PipelinePage() {
                           className="text-amber-400 border-amber-900/60 hover:bg-amber-950/40 text-xs"
                         >
                           <AlertCircle className="h-3.5 w-3.5 mr-1" />
-                          Request Changes
+                          Re-open & Request Changes
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setIsSubmitModalOpen(true)}
+                          className="text-xs"
+                        >
+                          <Upload className="h-3.5 w-3.5 mr-1" />
+                          Submit New Revision
                         </Button>
                       </div>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setIsSubmitModalOpen(true)}
-                        className="text-xs"
-                      >
-                        <Upload className="h-3.5 w-3.5 mr-1" />
-                        Submit New Revision
-                      </Button>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="rounded-xl border border-zinc-800 bg-[#0d0e12] p-4 space-y-3">
+                      <h5 className="font-semibold text-zinc-200 text-xs flex items-center gap-1.5">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                        Review & Quality Check
+                      </h5>
+
+                      <Input
+                        placeholder="Feedback / Review notes (optional)..."
+                        value={reviewComment}
+                        onChange={(e) => setReviewComment(e.target.value)}
+                        className="bg-zinc-900 border-zinc-800 text-xs"
+                      />
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() => reviewMutation.mutate({ status: 'Approved' })}
+                            disabled={reviewMutation.isPending}
+                            className="bg-white hover:bg-zinc-200 text-zinc-950 font-semibold text-xs"
+                          >
+                            <Check className="h-3.5 w-3.5 mr-1" />
+                            Approve Submission
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => reviewMutation.mutate({ status: 'Changes_Requested' })}
+                            disabled={reviewMutation.isPending}
+                            className="text-amber-400 border-amber-900/60 hover:bg-amber-950/40 text-xs"
+                          >
+                            <AlertCircle className="h-3.5 w-3.5 mr-1" />
+                            Request Changes
+                          </Button>
+                        </div>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setIsSubmitModalOpen(true)}
+                          className="text-xs"
+                        >
+                          <Upload className="h-3.5 w-3.5 mr-1" />
+                          Submit New Revision
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* Empty Submission State */

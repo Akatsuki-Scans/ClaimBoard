@@ -20,7 +20,7 @@ for (let i = 0; i < 5; i++) {
 
 import { SapphireClient } from '@sapphire/framework';
 import { GatewayIntentBits, ActivityType, Partials } from 'discord.js';
-import { connectDatabase, setProductionLogHook, DiscordLogChannelModel } from '@claimboard/database';
+import { connectDatabase, setProductionLogHook, setEventBroadcaster, DiscordLogChannelModel } from '@claimboard/database';
 import { moduleManager } from './core/moduleManager';
 import { CommandRouter } from './core/commandRouter';
 import { BotLogger } from './core/botLogger';
@@ -83,6 +83,18 @@ export async function setupSapphireBot() {
 
   // 1. Connect to MongoDB Atlas (if not already connected)
   await connectDatabase();
+
+  // Register cross-process event broadcaster to push real-time updates to Web API clients
+  const activeApiUrl = process.env.API_URL || 'http://localhost:4000';
+  setEventBroadcaster((event: string, payload: any) => {
+    fetch(`${activeApiUrl}/api/internal/broadcast`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event, payload }),
+    }).catch(() => {
+      // API might be offline or starting up, safely ignore
+    });
+  });
 
   // 2. Initialize Module Manager and register installed modules
   moduleManager.setClient(client);
