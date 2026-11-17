@@ -583,10 +583,13 @@ export function TeamPage() {
                               key={m.userId}
                               className="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-zinc-900/60 border border-zinc-800/50 hover:border-zinc-700/60 transition-colors"
                             >
-                              <div className="flex items-center gap-2 min-w-0">
+                              <Link
+                                to={`/user/${encodeURIComponent(m.displayName || m.username)}`}
+                                className="flex items-center gap-2 min-w-0 hover:text-indigo-400 transition-colors group"
+                              >
                                 <UserAvatar src={m.avatarUrl} name={m.displayName} size="sm" />
                                 <div className="min-w-0">
-                                  <div className="text-xs font-medium text-zinc-200 truncate">
+                                  <div className="text-xs font-medium text-zinc-200 group-hover:text-indigo-300 truncate">
                                     {m.displayName}
                                   </div>
                                   {m.discordUsername && (
@@ -595,7 +598,7 @@ export function TeamPage() {
                                     </div>
                                   )}
                                 </div>
-                              </div>
+                              </Link>
 
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <span
@@ -690,13 +693,6 @@ export function TeamPage() {
                 >
                   <option value="All">All Roles</option>
                   <option value="Administrator">Administrator</option>
-                  <option value="Manager">Manager</option>
-                  <option value="Translator">Translator</option>
-                  <option value="Proofreader">Proofreader</option>
-                  <option value="Cleaner">Cleaner</option>
-                  <option value="Typesetter">Typesetter</option>
-                  <option value="Redrawer">Redrawer</option>
-                  <option value="QualityChecker">Quality Checker</option>
                   <option value="Worker">Worker</option>
                 </select>
               </div>
@@ -750,10 +746,13 @@ export function TeamPage() {
                     filteredAndSortedStaff.map((m) => (
                       <tr key={m.id} className="hover:bg-zinc-800/30 transition-colors">
                         <td className="py-3 px-4">
-                          <div className="flex items-center gap-2.5">
+                          <Link
+                            to={`/user/${encodeURIComponent(m.displayName || m.username)}`}
+                            className="flex items-center gap-2.5 group hover:opacity-90 transition-opacity"
+                          >
                             <UserAvatar src={m.avatarUrl} name={m.displayName} size="md" />
                             <div>
-                              <div className="font-medium text-zinc-100 flex items-center gap-1.5">
+                              <div className="font-medium text-zinc-100 group-hover:text-indigo-400 transition-colors flex items-center gap-1.5">
                                 <span>{m.displayName}</span>
                                 {m.isApproved && (
                                   <span
@@ -768,19 +767,17 @@ export function TeamPage() {
                                 @{m.username}
                               </div>
                             </div>
-                          </div>
+                          </Link>
                         </td>
                         <td className="py-3 px-4">
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono border ${
-                              m.role === 'Administrator' || m.role === 'Owner'
+                              m.role === 'Administrator'
                                 ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                                : m.role === 'Manager'
-                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                                 : 'bg-zinc-800 text-zinc-300 border-zinc-700/60'
                             }`}
                           >
-                            {m.role}
+                            {m.role || 'Worker'}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-zinc-400 font-mono text-[11px]">
@@ -832,15 +829,18 @@ export function TeamPage() {
                 className="rounded-xl border border-zinc-800 bg-[#111215] p-4 space-y-3 transition-colors hover:border-zinc-700/80 shadow-sm"
               >
                 <div className="flex items-center justify-between gap-2.5">
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <Link
+                    to={`/user/${encodeURIComponent(m.displayName || m.username)}`}
+                    className="flex items-center gap-2.5 min-w-0 group hover:opacity-90 transition-opacity"
+                  >
                     <UserAvatar src={m.avatarUrl} name={m.displayName} size="lg" />
                     <div className="min-w-0">
-                      <div className="font-medium text-xs text-zinc-100 truncate">
+                      <div className="font-medium text-xs text-zinc-100 group-hover:text-indigo-400 transition-colors truncate">
                         {m.displayName}
                       </div>
                       <div className="text-[10px] text-zinc-400 capitalize">{m.role}</div>
                     </div>
-                  </div>
+                  </Link>
 
                   <span
                     className={`px-2 py-0.5 rounded text-[10px] font-mono border shrink-0 ${

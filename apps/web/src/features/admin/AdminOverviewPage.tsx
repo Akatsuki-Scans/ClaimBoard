@@ -212,13 +212,18 @@ export function AdminOverviewPage() {
                   {pendingUsers.slice(0, 5).map((applicant: any) => (
                     <tr key={applicant.id} className="hover:bg-zinc-800/20 transition-colors">
                       <td className="py-2.5 px-4 font-medium text-zinc-200">
-                        <div className="flex items-center gap-2.5">
+                        <Link
+                          to={`/user/${encodeURIComponent(applicant.displayName || applicant.username)}`}
+                          className="flex items-center gap-2.5 group hover:opacity-90 transition-opacity"
+                        >
                           <UserAvatar src={applicant.avatarUrl} name={applicant.displayName} size="md" />
                           <div className="min-w-0">
-                            <div className="text-xs font-semibold text-zinc-100 truncate">{applicant.displayName}</div>
+                            <div className="text-xs font-semibold text-zinc-100 group-hover:text-indigo-400 transition-colors truncate">
+                              {applicant.displayName}
+                            </div>
                             <div className="text-[10px] text-zinc-500 font-mono truncate">@{applicant.username}</div>
                           </div>
-                        </div>
+                        </Link>
                       </td>
                       <td className="py-2.5 px-4 font-mono text-zinc-300">
                         {applicant.discordUsername ? (

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '../../lib/api';
 import { AdminNavTabs } from '../../components/admin/AdminNavTabs';
@@ -292,15 +293,20 @@ export function AdminUsersPage() {
                   {approvedUsers.map((u) => (
                     <tr key={u.id} className="hover:bg-zinc-800/20 transition-colors">
                       <td className="py-3 px-4 font-medium text-zinc-200">
-                        <div className="flex items-center gap-2.5">
+                        <Link
+                          to={`/user/${encodeURIComponent(u.displayName || u.username)}`}
+                          className="flex items-center gap-2.5 group hover:opacity-90 transition-opacity"
+                        >
                           <UserAvatar src={u.avatarUrl} name={u.displayName} size="md" />
                           <div className="min-w-0">
-                            <div className="text-xs font-semibold text-zinc-100 truncate">{u.displayName}</div>
+                            <div className="text-xs font-semibold text-zinc-100 group-hover:text-indigo-400 transition-colors truncate">
+                              {u.displayName}
+                            </div>
                             <div className="text-[10px] text-zinc-500 font-mono truncate">
                               @{u.username} {u.discordUsername ? `• ${u.discordUsername}` : ''}
                             </div>
                           </div>
-                        </div>
+                        </Link>
                       </td>
                       <td className="py-3 px-4">
                         <Badge variant="outline">{u.role}</Badge>

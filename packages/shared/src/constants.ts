@@ -1,12 +1,6 @@
 export const SYSTEM_ROLES = [
-  'Owner',
   'Administrator',
-  'Manager',
-  'Moderator',
   'Worker',
-  'Member',
-  'Reviewer',
-  'Guest',
 ] as const;
 
 export type SystemRole = typeof SYSTEM_ROLES[number];
@@ -39,69 +33,13 @@ export const PERMISSIONS = [
 export type Permission = typeof PERMISSIONS[number];
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<SystemRole, Permission[]> = {
-  Owner: [...PERMISSIONS],
   Administrator: [...PERMISSIONS],
-  Manager: [
-    'users.view',
-    'manga.view',
-    'manga.create',
-    'manga.edit',
-    'assignments.view',
-    'assignments.create',
-    'assignments.edit',
-    'assignments.delete',
-    'claims.create',
-    'claims.cancel',
-    'claims.reassign',
-    'claims.complete',
-    'pipeline.view',
-    'pipeline.manage',
-    'analytics.view',
-    'discord.manage',
-    'audit.view',
-  ],
-  Moderator: [
-    'users.view',
-    'manga.view',
-    'assignments.view',
-    'assignments.create',
-    'assignments.edit',
-    'claims.create',
-    'claims.cancel',
-    'claims.reassign',
-    'claims.complete',
-    'pipeline.view',
-    'pipeline.manage',
-    'audit.view',
-  ],
-  Reviewer: [
-    'users.view',
-    'manga.view',
-    'assignments.view',
-    'claims.create',
-    'claims.cancel',
-    'claims.complete',
-    'pipeline.view',
-  ],
   Worker: [
     'users.view',
     'manga.view',
     'assignments.view',
     'claims.create',
     'claims.cancel',
-    'pipeline.view',
-  ],
-  Member: [
-    'users.view',
-    'manga.view',
-    'assignments.view',
-    'claims.create',
-    'claims.cancel',
-    'pipeline.view',
-  ],
-  Guest: [
-    'manga.view',
-    'assignments.view',
     'pipeline.view',
   ],
 };

@@ -42,6 +42,7 @@ import { notificationRoutes } from './modules/notifications/notificationRoutes';
 import { auditRoutes } from './modules/audit/auditRoutes';
 import { settingsRoutes } from './modules/settings/settingsRoutes';
 import { deadlineRoutes } from './modules/deadlines/deadlineRoutes';
+import { userRoutes } from './modules/users/userRoutes';
 
 export async function buildServer() {
   const app = fastify({
@@ -97,6 +98,8 @@ export async function buildServer() {
   await app.register(auditRoutes, { prefix: '/api/audit' });
   await app.register(settingsRoutes, { prefix: '/api/settings' });
   await app.register(deadlineRoutes, { prefix: '/api/deadlines' });
+  await app.register(userRoutes, { prefix: '/api/users' });
+  await app.register(userRoutes, { prefix: '/api/user' });
 
   return app;
 }

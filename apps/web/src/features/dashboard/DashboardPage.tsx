@@ -688,7 +688,7 @@ export function DashboardPage() {
                 <TeamIcon className="h-4 w-4 text-zinc-400" />
                 <h2 className="text-xs font-semibold text-zinc-100">Team Workload</h2>
               </div>
-              <Link to="/team" className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1">
+              <Link to="/users" className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1">
                 View all <ArrowRightIcon className="h-3 w-3" />
               </Link>
             </div>
@@ -728,17 +728,20 @@ export function DashboardPage() {
                       key={m.id || m.username}
                       className="flex items-center justify-between gap-2 text-xs py-0.5"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
+                      <Link
+                        to={`/user/${encodeURIComponent(m.displayName || m.username)}`}
+                        className="flex items-center gap-2.5 min-w-0 group hover:opacity-90 transition-opacity"
+                      >
                         <UserAvatar src={m.avatarUrl} name={m.displayName || m.username} size="sm" />
                         <div className="truncate">
-                          <div className="font-medium text-zinc-200 leading-none truncate">
+                          <div className="font-medium text-zinc-200 group-hover:text-indigo-400 transition-colors leading-none truncate">
                             {m.displayName || m.username}
                           </div>
                           <div className="text-[10px] text-zinc-500 font-mono mt-0.5">
                             {m.activeClaimsCount || 0} active slots
                           </div>
                         </div>
-                      </div>
+                      </Link>
 
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-1 ${

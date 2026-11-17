@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '../../lib/api';
 import { AdminNavTabs } from '../../components/admin/AdminNavTabs';
@@ -84,7 +85,17 @@ export function AdminClaimsPage() {
                     </Badge>
                   </div>
                   <div className="text-[11px] text-zinc-500 font-mono">
-                    Assigned staff: <strong className="text-zinc-300 font-normal">{a.assignedWorkerName || 'Open for claim'}</strong>
+                    Assigned staff:{' '}
+                    {a.assignedWorkerName ? (
+                      <Link
+                        to={`/user/${encodeURIComponent(a.assignedWorkerName)}`}
+                        className="text-zinc-300 font-normal hover:text-indigo-400 hover:underline transition-colors"
+                      >
+                        {a.assignedWorkerName}
+                      </Link>
+                    ) : (
+                      <strong className="text-zinc-300 font-normal">Open for claim</strong>
+                    )}
                   </div>
                 </div>
 
@@ -115,6 +126,17 @@ export function AdminClaimsPage() {
             }}
             className="space-y-3.5 text-xs"
           >
+            {reassigningTask.assignedWorkerName && (
+              <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-400">
+                Currently claimed by:{' '}
+                <Link
+                  to={`/user/${encodeURIComponent(reassigningTask.assignedWorkerName)}`}
+                  className="text-zinc-200 font-semibold hover:text-indigo-400 hover:underline transition-colors"
+                >
+                  {reassigningTask.assignedWorkerName}
+                </Link>
+              </div>
+            )}
             <div>
               <label className="block text-zinc-300 font-medium mb-1">New Worker</label>
               <select

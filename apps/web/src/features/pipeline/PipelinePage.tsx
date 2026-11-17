@@ -434,22 +434,20 @@ export function PipelinePage() {
             <div className="flex items-center bg-zinc-900 border border-zinc-800 p-0.5 rounded-lg text-xs">
               <button
                 onClick={() => setViewMode('milanote')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${
-                  viewMode === 'milanote'
-                    ? 'bg-zinc-800 text-white font-medium shadow-sm'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${viewMode === 'milanote'
+                  ? 'bg-zinc-800 text-white font-medium shadow-sm'
+                  : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
               >
                 <Kanban className="h-3.5 w-3.5 text-zinc-300" />
                 Milanote Board
               </button>
               <button
                 onClick={() => setViewMode('flow')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${
-                  viewMode === 'flow'
-                    ? 'bg-zinc-800 text-white font-medium shadow-sm'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${viewMode === 'flow'
+                  ? 'bg-zinc-800 text-white font-medium shadow-sm'
+                  : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
               >
                 <GitBranch className="h-3.5 w-3.5 text-zinc-300" />
                 Linear Flow
@@ -553,11 +551,10 @@ export function PipelinePage() {
                   onDragOver={(e) => handleDragOver(e, column.id)}
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, column.targetStatus)}
-                  className={`rounded-2xl border transition-all duration-200 flex flex-col min-h-[500px] ${
-                    isDragOver
-                      ? 'border-white/60 bg-zinc-900/60 ring-2 ring-white/20 shadow-lg'
-                      : 'border-zinc-800/80 bg-[#0f1115]/90'
-                  }`}
+                  className={`rounded-2xl border transition-all duration-200 flex flex-col min-h-[500px] ${isDragOver
+                    ? 'border-white/60 bg-zinc-900/60 ring-2 ring-white/20 shadow-lg'
+                    : 'border-zinc-800/80 bg-[#0f1115]/90'
+                    }`}
                 >
                   {/* Column Header */}
                   <div className="p-3.5 border-b border-zinc-800/80 flex items-center justify-between">
@@ -579,11 +576,10 @@ export function PipelinePage() {
                   <div className="p-3 space-y-3 flex-1 overflow-y-auto">
                     {columnStages.length === 0 ? (
                       <div
-                        className={`h-36 rounded-xl border border-dashed flex flex-col items-center justify-center p-4 text-center transition-colors ${
-                          isDragOver
-                            ? 'border-white/50 bg-zinc-900 text-white'
-                            : 'border-zinc-800/60 bg-zinc-950/20 text-zinc-600'
-                        }`}
+                        className={`h-36 rounded-xl border border-dashed flex flex-col items-center justify-center p-4 text-center transition-colors ${isDragOver
+                          ? 'border-white/50 bg-zinc-900 text-white'
+                          : 'border-zinc-800/60 bg-zinc-950/20 text-zinc-600'
+                          }`}
                       >
                         <span className="text-xs font-medium">Drag option here</span>
                         <span className="text-[10px] mt-0.5">Move task to {column.title}</span>
@@ -599,11 +595,10 @@ export function PipelinePage() {
                             draggable={true}
                             onDragStart={(e) => handleDragStart(e, stage.assignmentId)}
                             onClick={() => openInspector(stage)}
-                            className={`group relative rounded-xl border p-4 bg-[#14171d] hover:bg-[#181b22] transition-all duration-150 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-xl ${
-                              isBeingDragged
-                                ? 'opacity-40 border-dashed border-white/60 scale-95'
-                                : 'border-zinc-800/90 hover:border-zinc-600'
-                            }`}
+                            className={`group relative rounded-xl border p-4 bg-[#14171d] hover:bg-[#181b22] transition-all duration-150 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-xl ${isBeingDragged
+                              ? 'opacity-40 border-dashed border-white/60 scale-95'
+                              : 'border-zinc-800/90 hover:border-zinc-600'
+                              }`}
                           >
                             {/* Drag Handle & Stage Header */}
                             <div className="flex items-start justify-between gap-2">
@@ -636,7 +631,15 @@ export function PipelinePage() {
                               <div className="flex items-center gap-1.5 text-zinc-400">
                                 <User className="h-3.5 w-3.5 text-zinc-500" />
                                 <span className="truncate max-w-[120px]">
-                                  {stage.assignedWorkerName || (
+                                  {stage.assignedWorkerName ? (
+                                    <Link
+                                      to={`/user/${encodeURIComponent(stage.assignedWorkerName)}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="hover:text-indigo-400 hover:underline transition-colors"
+                                    >
+                                      {stage.assignedWorkerName}
+                                    </Link>
+                                  ) : (
                                     <span className="text-zinc-500 italic">Unassigned</span>
                                   )}
                                 </span>
@@ -811,36 +814,42 @@ export function PipelinePage() {
                         className="flex flex-col items-center group z-10 cursor-pointer"
                       >
                         <div
-                          className={`h-11 w-11 rounded-2xl flex items-center justify-center text-xs font-bold transition-all shadow-md ${
-                            isCompleted
-                              ? 'bg-white text-zinc-950 font-bold scale-105 ring-4 ring-white/20'
-                              : isReview
+                          className={`h-11 w-11 rounded-2xl flex items-center justify-center text-xs font-bold transition-all shadow-md ${isCompleted
+                            ? 'bg-white text-zinc-950 font-bold scale-105 ring-4 ring-white/20'
+                            : isReview
                               ? 'bg-amber-400 text-zinc-950 ring-4 ring-amber-400/20'
                               : isActive
-                              ? 'bg-zinc-900 border-2 border-white text-white ring-4 ring-white/20 scale-105'
-                              : 'bg-zinc-900 border border-zinc-700 text-zinc-400 group-hover:border-zinc-500'
-                          }`}
+                                ? 'bg-zinc-900 border-2 border-white text-white ring-4 ring-white/20 scale-105'
+                                : 'bg-zinc-900 border border-zinc-700 text-zinc-400 group-hover:border-zinc-500'
+                            }`}
                         >
                           {isCompleted ? <Check className="h-5 w-5 stroke-[3]" /> : idx + 1}
                         </div>
 
                         <span
-                          className={`text-xs mt-2.5 font-semibold transition-colors ${
-                            isCompleted
-                              ? 'text-white'
-                              : isActive
+                          className={`text-xs mt-2.5 font-semibold transition-colors ${isCompleted
+                            ? 'text-white'
+                            : isActive
                               ? 'text-white'
                               : isReview
-                              ? 'text-amber-400'
-                              : 'text-zinc-400'
-                          }`}
+                                ? 'text-amber-400'
+                                : 'text-zinc-400'
+                            }`}
                         >
                           {stage.workTypeName}
                         </span>
 
-                        <span className="text-[10px] text-zinc-500 mt-0.5">
-                          {stage.assignedWorkerName || 'Open for claim'}
-                        </span>
+                        {stage.assignedWorkerName ? (
+                          <Link
+                            to={`/user/${encodeURIComponent(stage.assignedWorkerName)}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-[10px] text-zinc-400 hover:text-indigo-300 hover:underline mt-0.5 truncate max-w-[120px]"
+                          >
+                            {stage.assignedWorkerName}
+                          </Link>
+                        ) : (
+                          <span className="text-[10px] text-zinc-500 mt-0.5">Open for claim</span>
+                        )}
 
                         {(stage.hasDeliverables || stage.latestDeliverable) && (
                           <button
@@ -859,9 +868,8 @@ export function PipelinePage() {
 
                       {!isLast && (
                         <div
-                          className={`flex-1 h-1 mx-3 rounded-full transition-all ${
-                            isCompleted ? 'bg-white' : 'bg-zinc-800'
-                          }`}
+                          className={`flex-1 h-1 mx-3 rounded-full transition-all ${isCompleted ? 'bg-white' : 'bg-zinc-800'
+                            }`}
                         />
                       )}
                     </React.Fragment>
@@ -893,9 +901,16 @@ export function PipelinePage() {
                   <span className="text-zinc-500">|</span>
                   <span className="text-zinc-400">
                     Assigned:{' '}
-                    <strong className="text-zinc-200">
-                      {inspectedStage.assignedWorkerName || 'Open for Claim'}
-                    </strong>
+                    {inspectedStage.assignedWorkerName ? (
+                      <Link
+                        to={`/user/${encodeURIComponent(inspectedStage.assignedWorkerName)}`}
+                        className="text-zinc-200 font-semibold hover:text-indigo-400 hover:underline transition-colors"
+                      >
+                        {inspectedStage.assignedWorkerName}
+                      </Link>
+                    ) : (
+                      <strong className="text-zinc-200">Open for Claim</strong>
+                    )}
                   </span>
                 </div>
 
@@ -980,9 +995,18 @@ export function PipelinePage() {
                         </h4>
                         <p className="text-[11px] text-zinc-400 mt-0.5">
                           Submitted by{' '}
-                          <strong className="text-zinc-200">
-                            {inspectedStage.latestDeliverable.submittedByName || inspectedStage.assignedWorkerName || 'Worker'}
-                          </strong>{' '}
+                          {inspectedStage.latestDeliverable.submittedByName || inspectedStage.assignedWorkerName ? (
+                            <Link
+                              to={`/user/${encodeURIComponent(
+                                inspectedStage.latestDeliverable.submittedByName || inspectedStage.assignedWorkerName || ''
+                              )}`}
+                              className="text-zinc-200 font-semibold hover:text-indigo-400 hover:underline transition-colors"
+                            >
+                              {inspectedStage.latestDeliverable.submittedByName || inspectedStage.assignedWorkerName}
+                            </Link>
+                          ) : (
+                            <strong className="text-zinc-200">Worker</strong>
+                          )}{' '}
                           • Rev #{inspectedStage.latestDeliverable.revision}
                           {inspectedStage.latestDeliverable.createdAt && (
                             <span> • {formatInUserTimeZone(inspectedStage.latestDeliverable.createdAt, activeTimeZone, 'shortDateTime')}</span>
@@ -1112,9 +1136,16 @@ export function PipelinePage() {
 
                       <p className="text-xs text-zinc-300">
                         This deliverable was reviewed and <strong>approved</strong> by{' '}
-                        <strong className="text-white">
-                          {inspectedStage.latestReview?.reviewerName || 'Administrator'}
-                        </strong>
+                        {inspectedStage.latestReview?.reviewerName ? (
+                          <Link
+                            to={`/user/${encodeURIComponent(inspectedStage.latestReview.reviewerName)}`}
+                            className="text-white font-semibold hover:text-indigo-400 hover:underline transition-colors"
+                          >
+                            {inspectedStage.latestReview.reviewerName}
+                          </Link>
+                        ) : (
+                          <strong className="text-white">Administrator</strong>
+                        )}
                         {inspectedStage.latestReview?.createdAt && (
                           <span> on {formatInUserTimeZone(inspectedStage.latestReview.createdAt, activeTimeZone, 'shortDateTime')}</span>
                         )}
@@ -1447,13 +1478,12 @@ export function PipelinePage() {
                         <span
                           key={st.assignmentId}
                           title={`${st.workTypeName}: ${st.status}`}
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded border transition-colors ${
-                            isComplete
-                              ? 'bg-white text-zinc-950 border-white'
-                              : isInProg
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded border transition-colors ${isComplete
+                            ? 'bg-white text-zinc-950 border-white'
+                            : isInProg
                               ? 'bg-zinc-800 text-white border-zinc-600'
                               : 'bg-zinc-950 text-zinc-500 border-zinc-800'
-                          }`}
+                            }`}
                         >
                           {st.workTypeCode}
                         </span>

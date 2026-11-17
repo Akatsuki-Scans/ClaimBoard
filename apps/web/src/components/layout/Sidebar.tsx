@@ -82,7 +82,7 @@ export function Sidebar() {
     { label: 'Calendar', to: '/calendar', icon: CalendarIcon, badge: urgentDeadlinesCount > 0 ? urgentDeadlinesCount : undefined },
     { label: 'Manga', to: '/manga', icon: MangaIcon },
     { label: 'History', to: '/history', icon: HistoryIcon },
-    { label: 'Team', to: '/team', icon: TeamIcon },
+    { label: 'Team', to: '/users', icon: TeamIcon },
     { label: 'Analytics', to: '/analytics', icon: AnalyticsIcon },
   ];
 
@@ -135,7 +135,12 @@ export function Sidebar() {
           </div>
           {navLinks.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname.startsWith(item.to);
+            const isActive =
+              item.to === '/users'
+                ? location.pathname.startsWith('/users') ||
+                  location.pathname.startsWith('/user') ||
+                  location.pathname.startsWith('/team')
+                : location.pathname.startsWith(item.to);
             return (
               <NavLink
                 key={item.to}

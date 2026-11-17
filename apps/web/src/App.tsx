@@ -10,7 +10,9 @@ import { MangaListPage } from './features/manga/MangaListPage';
 import { MangaDetailPage } from './features/manga/MangaDetailPage';
 import { HistoryPage } from './features/history/HistoryPage';
 import { TeamPage } from './features/team/TeamPage';
+import { UserProfilePage } from './features/user/UserProfilePage';
 import { NotificationsPage } from './features/notifications/NotificationsPage';
+import { NotFoundPage } from './features/not-found/NotFoundPage';
 import { CalendarPage } from './features/calendar/CalendarPage';
 
 // Admin Pages
@@ -44,7 +46,14 @@ export function App() {
         <Route path="/manga" element={<MangaListPage />} />
         <Route path="/manga/:id" element={<MangaDetailPage />} />
         <Route path="/history" element={<HistoryPage />} />
-        <Route path="/team" element={<TeamPage />} />
+        <Route path="/users" element={<TeamPage />} />
+        <Route path="/users/:identifier" element={<UserProfilePage />} />
+        <Route path="/user" element={<UserProfilePage />} />
+        <Route path="/user/:identifier" element={<UserProfilePage />} />
+        <Route path="/profile" element={<UserProfilePage />} />
+        <Route path="/profile/:identifier" element={<UserProfilePage />} />
+        <Route path="/team" element={<Navigate to="/users" replace />} />
+        <Route path="/team/*" element={<Navigate to="/users" replace />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/deadlines" element={<Navigate to="/calendar" replace />} />
         <Route path="/analytics" element={<AdminAnalyticsPage />} />
@@ -65,8 +74,9 @@ export function App() {
         <Route path="/admin/audit" element={<AdminAuditPage />} />
       </Route>
 
-      {/* Fallback */}
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      {/* Custom 404 Not Found (No header or go-back button) */}
+      <Route path="/404" element={<NotFoundPage />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }
